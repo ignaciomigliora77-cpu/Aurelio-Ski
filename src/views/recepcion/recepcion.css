@@ -333,3 +333,156 @@
     padding: 0 18px 32px;
   }
 }
+
+/* Fallback por @media para navegadores sin container queries */
+@media (max-width: 920px) {
+  .sidebar {
+    position: static;
+    width: auto;
+    flex: none;
+    flex-direction: row;
+    align-items: center;
+    height: auto;
+    max-height: none;
+    gap: 4px;
+    padding: 10px 12px;
+    overflow-x: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--separator-soft);
+    background: rgba(255, 255, 255, 0.85);
+    -webkit-backdrop-filter: blur(26px) saturate(180%);
+    backdrop-filter: blur(26px) saturate(180%);
+  }
+  .sidebar-brand {
+    display: none;
+  }
+  .sidebar-nav {
+    flex-direction: row;
+    gap: 4px;
+  }
+  .sidebar-link {
+    white-space: nowrap;
+    padding: 8px 12px;
+  }
+  .sidebar .section-label {
+    display: none;
+  }
+  .sidebar-footer {
+    margin: 0 0 0 auto;
+    flex-direction: row;
+    align-items: center;
+    border: none;
+    padding: 0;
+    flex: none;
+  }
+  .sidebar-footer .who {
+    display: none;
+  }
+  .panel {
+    margin-left: 0;
+  }
+  .page-head {
+    padding: 16px 18px 10px;
+  }
+  .page-head h2 {
+    font-size: 22px;
+  }
+  .body-pad {
+    padding: 0 18px 32px;
+  }
+}
+
+/* Breakpoint de teléfono */
+@container (max-width: 640px) {
+  .sidebar {
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 10px;
+  }
+  .sidebar-link {
+    padding: 8px 10px;
+    font-size: 14px;
+  }
+  .sidebar-footer {
+    width: 100%;
+    margin: 0;
+    padding: 6px 0 2px;
+    flex-wrap: wrap;
+    border-top: 1px solid var(--separator-soft);
+  }
+  .sidebar-footer .btn {
+    flex: 1 1 auto;
+    padding: 0 8px;
+    font-size: 13px;
+  }
+  .sales-head {
+    flex-wrap: wrap;
+  }
+  .segmented button {
+    padding: 0 10px;
+    min-width: 0;
+  }
+  .metric {
+    padding: 14px;
+  }
+  .page-head {
+    padding: 14px 14px 10px;
+  }
+  .page-head h2 {
+    font-size: 19px;
+  }
+  .body-pad {
+    padding: 0 14px 28px;
+  }
+  .aud-table th,
+  .aud-table td {
+    padding: 8px 10px;
+  }
+}
+
+@media (max-width: 640px) {
+  .sidebar {
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 10px;
+  }
+  .sidebar-link {
+    padding: 8px 10px;
+    font-size: 14px;
+  }
+  .sidebar-footer {
+    width: 100%;
+    margin: 0;
+    padding: 6px 0 2px;
+    flex-wrap: wrap;
+    border-top: 1px solid var(--separator-soft);
+  }
+  .sidebar-footer .btn {
+    flex: 1 1 auto;
+    padding: 0 8px;
+    font-size: 13px;
+  }
+  .sales-head {
+    flex-wrap: wrap;
+  }
+  .segmented button {
+    padding: 0 10px;
+    min-width: 0;
+  }
+  .metric {
+    padding: 14px;
+  }
+  .page-head {
+    padding: 14px 14px 10px;
+  }
+  .page-head h2 {
+    font-size: 19px;
+  }
+  .body-pad {
+    padding: 0 14px 28px;
+  }
+  .aud-table th,
+  .aud-table td {
+    padding: 8px 10px;
+  }
+}
