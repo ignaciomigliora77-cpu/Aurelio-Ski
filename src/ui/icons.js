@@ -22,8 +22,6 @@ const ICONS = {
   xmark: '<path d="M18 6 6 18M6 6l12 12"/>',
   'chevron-right': '<path d="m9 18 6-6-6-6"/>',
   wifi: '<path d="M4.5 12.5a12 12 0 0 1 15 0"/><path d="M7.5 15.8a7 7 0 0 1 9 0"/><circle cx="12" cy="19.5" r="0.8" fill="currentColor" stroke="none"/>',
-  'wifi-off':
-    '<path d="M4.5 12.5a12 12 0 0 1 11.5-1.4"/><path d="M7.5 15.8a7 7 0 0 1 6.3-.5"/><circle cx="12" cy="19.5" r="0.8" fill="currentColor" stroke="none"/><line x1="2" y1="2" x2="22" y2="22"/>',
   'arrow-up': '<path d="M12 19V5"/><path d="m5 12 7-7 7 7"/>',
   'arrow-down': '<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>',
   ticket:

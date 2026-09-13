@@ -77,15 +77,19 @@ function makeCollection(def) {
   }
 
   const rehydrate = async () => {
-    const snap = await get(ref(rtdb, path))
-    const rows = []
-    if (snap.exists()) {
-      snap.forEach((child) => {
-        const v = child.val()
-        if (v && typeof v === 'object') rows.push({ [keyField]: child.key, ...v })
-      })
+    try {
+      const snap = await get(ref(rtdb, path))
+      const rows = []
+      if (snap.exists()) {
+        snap.forEach((child) => {
+          const v = child.val()
+          if (v && typeof v === 'object') rows.push({ [keyField]: child.key, ...v })
+        })
+      }
+      cache = rows
+    } catch {
+      cache = []
     }
-    cache = rows
     notify()
   }
 
@@ -267,7 +271,7 @@ export const META = () => getCol('meta')
 
 /* ---------- Arranque ---------- */
 
-export async function initData() {
+export const initData = async () => {
   await Promise.all(
     TABLES.map(async (def) => {
       const col = getCol(def.name)
@@ -276,8 +280,6 @@ export async function initData() {
     })
   )
 }
-
-export const checkConnection = () => get(ref(rtdb, 'meta/__conn'))
 
 /* ---------- Reset ---------- */
 

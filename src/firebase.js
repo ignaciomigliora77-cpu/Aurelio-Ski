@@ -1,10 +1,8 @@
 import { initializeApp } from "firebase/app";
 import { getDatabase } from "firebase/database";
-import { getAuth, signInAnonymously } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAaalQCKGcaCSewAZyyNoZzCH3_Jh0V-MI",
-  authDomain: "aurelio-ski-77530.firebaseapp.com",
   databaseURL: "https://aurelio-ski-77530-default-rtdb.firebaseio.com",
   projectId: "aurelio-ski-77530",
   storageBucket: "aurelio-ski-77530.firebasestorage.app",
@@ -16,10 +14,3 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 export const db = getDatabase(app);
-
-export const auth = getAuth(app);
-
-export async function ensureAuth() {
-  if (!auth.currentUser) await signInAnonymously(auth)
-  return auth.currentUser
-}
