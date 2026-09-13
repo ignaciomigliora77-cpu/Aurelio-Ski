@@ -1,11 +1,10 @@
-import { CATALOG, LINKS, ORDERS } from '../../db/index.js'
+import { CATALOG, LINKS, ORDERS, subscribeData } from '../../db/index.js'
 import { categoryOf } from '../../db/categories.js'
 import { getSession, logout } from '../../auth/index.js'
 import { navigate } from '../../router.js'
 import { icon } from '../../ui/icons.js'
 import { money, esc, fmtDateTime, ok, err, haptic, uid } from '../../ui/components.js'
 import { cleanText } from '../../ui/sanitize.js'
-import { syncNotify, onSummary } from '../../ui/sync.js'
 import { initQrCanvas } from '../../ui/qr.js'
 import './ventas.css'
 
@@ -25,9 +24,7 @@ const genCode = (prefix) =>
 
 let rootEl = null
 let mainEl = null
-let pollId = null
-let sentTimer = null
-let sentOff = null
+let dataOff = null
 let catalog = []
 let state = { mode: 'link', q: '', promoter: null, link: null, items: {}, client: '', lastOrder: null }
 
@@ -35,8 +32,8 @@ async function load() {
   catalog = await CATALOG().toArray()
 }
 
-async function resolveLink() {
-  const link = await LINKS().orderBy('at').reverse().first()
+function resolveLink() {
+  const link = LINKS().orderBy('at').reverse().toArray().find((l) => l.desk === getDesk())
   if (!link) return null
   if (Date.now() - link.at > LINK_TTL) return null
   if (link.expiresAt && Date.now() > link.expiresAt) return null
@@ -93,7 +90,6 @@ async function handleOrdered() {
   await ORDERS().add(order)
   if (state.link?.id) await LINKS().delete(state.link.id)
   document.dispatchEvent(new CustomEvent('ventas:new', { detail: { code: order.code } }))
-  syncNotify()
   state.lastOrder = order.code
   state.promoter = null
   state.link = null
@@ -163,7 +159,6 @@ async function simulateScan() {
   state.items = {}
   state.client = ''
   state.q = ''
-  clearInterval(pollId)
   haptic([40, 40])
   ok('Sesión vinculada · modo prueba')
   renderList()
@@ -293,45 +288,30 @@ function stepItem(id, delta) {
 function goLink() {
   state.mode = 'link'
   renderLink()
-  startPoll()
 }
 
-function startPoll() {
-  clearInterval(pollId)
-  pollId = setInterval(async () => {
-    const link = await resolveLink()
-    if (!link || state.mode !== 'link') return
-    if (state.promoter && state.promoter === link.promoterId) return
-    state.mode = 'list'
-    state.promoter = link.promoterId
-    state.link = link
-    state.items = {}
-    state.client = ''
-    state.q = ''
-    clearInterval(pollId)
-    haptic([40, 40])
-    renderList()
-  }, 1200)
+function onDataChange() {
+  if (!rootEl) return
+  if (state.mode === 'link') {
+    const link = resolveLink()
+    if (link && state.promoter !== link.promoterId) {
+      state.mode = 'list'
+      state.promoter = link.promoterId
+      state.link = link
+      state.items = {}
+      state.client = ''
+      state.q = ''
+      haptic([40, 40])
+      renderList()
+    }
+  } else {
+    renderSent()
+  }
 }
 
-function stopOrderScan() {
-  clearInterval(pollId)
-  pollId = null
-  stopSentSync()
-}
-
-function startSentSync() {
-  clearInterval(sentTimer)
-  sentTimer = setInterval(renderSent, 3000)
-  sentOff?.()
-  sentOff = onSummary(() => renderSent())
-}
-
-function stopSentSync() {
-  clearInterval(sentTimer)
-  sentTimer = null
-  sentOff?.()
-  sentOff = null
+function stopDataSync() {
+  dataOff?.()
+  dataOff = null
 }
 
 export function ventasView() {
@@ -358,14 +338,17 @@ export function ventasView() {
 
     mainEl = root.querySelector('#v-main')
     root.querySelector('#logout').addEventListener('click', () => {
-      stopOrderScan()
+      stopDataSync()
       logout()
       navigate('login', true)
     })
 
+    dataOff?.()
+    dataOff = subscribeData(onDataChange)
+
     await purgeLinks()
 
-    const link = await resolveLink()
+    const link = resolveLink()
     if (link) {
       state.mode = 'list'
       state.promoter = link.promoterId
@@ -377,11 +360,10 @@ export function ventasView() {
     } else {
       goLink()
     }
-    startSentSync()
   }
 
   const unmount = () => {
-    stopOrderScan()
+    stopDataSync()
     rootEl = null
     mainEl = null
   }

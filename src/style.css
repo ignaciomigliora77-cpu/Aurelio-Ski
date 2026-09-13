@@ -1600,37 +1600,46 @@ ul {
   animation: popIn 0.22s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-/* ---------- Píldora de conexión ---------- */
+/* ---------- Bloqueo sin conexión ---------- */
 
-.netpill {
+.netblock {
   position: fixed;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 45;
+  inset: 0;
+  z-index: 90;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-2);
-  background: var(--material);
-  -webkit-backdrop-filter: var(--blur);
-  backdrop-filter: var(--blur);
-  border: 1px solid var(--separator);
-  box-shadow: var(--shadow-2);
+  justify-content: center;
+  padding: 24px;
+  background: var(--bg, #0b0d12);
   opacity: 0;
-  transform: translate(-50%, -8px);
   pointer-events: none;
-  transition: opacity 0.25s ease, transform 0.25s ease;
+  transition: opacity 0.25s ease;
 }
 
-.netpill.offline {
+.netblock.show {
   opacity: 1;
-  transform: translate(-50%, 0);
+  pointer-events: auto;
+}
+
+.netblock-card {
+  max-width: 320px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-1, #fff);
+}
+
+.netblock-icon {
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  border-radius: 20px;
   color: var(--orange);
+  background: var(--material, #161a21);
+  border: 1px solid var(--separator, #262b33);
 }
 
 /* ---------- Contenedor squircle (superelipse suave) ---------- */

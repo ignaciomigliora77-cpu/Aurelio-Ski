@@ -1,4 +1,4 @@
-import { CATALOG, ORDERS, RENTALS } from '../../db/index.js'
+import { CATALOG, ORDERS, RENTALS, subscribeData } from '../../db/index.js'
 import { categoryOf } from '../../db/categories.js'
 import { getSession, logout } from '../../auth/index.js'
 import { navigate } from '../../router.js'
@@ -17,7 +17,7 @@ let catalog = []
 let catalogById = new Map()
 let orders = []
 let rentals = []
-let pollId = null
+let dataOff = null
 let delivering = false
 
 const ANIM_MS = 3000
@@ -392,19 +392,22 @@ export function rentalView(profileName) {
     bodyEl = root.querySelector('#rt-body')
     root.querySelector('#logout').addEventListener('click', async () => {
       haptic(10)
-      stopPoll()
+      stopDataSync()
       await logout()
       navigate('login', true)
     })
     paint()
-    pollId = setInterval(async () => {
-      await refresh()
-      paint()
-    }, 4000)
+    dataOff?.()
+    dataOff = subscribeData(async () => {
+      if (rootEl && !document.querySelector('.sheet')) {
+        await refresh()
+        paint()
+      }
+    })
   }
 
   const unmount = () => {
-    stopPoll()
+    stopDataSync()
     rootEl = null
     bodyEl = null
   }
@@ -412,9 +415,7 @@ export function rentalView(profileName) {
   return { mount, unmount }
 }
 
-function stopPoll() {
-  if (pollId) {
-    clearInterval(pollId)
-    pollId = null
-  }
+function stopDataSync() {
+  dataOff?.()
+  dataOff = null
 }

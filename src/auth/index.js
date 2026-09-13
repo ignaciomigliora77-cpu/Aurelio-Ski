@@ -1,12 +1,25 @@
-import { db, BOXES, ORDERS, PROMOTER_DB } from '../db/index.js'
+import { BOXES, ORDERS, resetFirebase } from '../db/index.js'
 import { uid } from '../ui/components.js'
 import { hashPassword, verifyPassword, verifySessionCred as verifyCred } from './crypto.js'
 import { logAudit } from '../db/audit.js'
+import { listPromoters as firebaseListPromoters, findByUsername, updatePromoter } from '../promoters/firebase-promoters.js'
 
 const KEY = 'aurelio.session'
 
 export const SESSION_TTL_MS = 8 * 3600e3
-export const IDLE_MS = { promotor: 5 * 60e3, default: 15 * 60e3 }
+
+const isTouchDevice = () => {
+  try {
+    return typeof navigator !== 'undefined' && (navigator.maxTouchPoints > 0 || 'ontouchstart' in window)
+  } catch {
+    return false
+  }
+}
+
+export const IDLE_MS = {
+  promotor: (isTouchDevice() ? 30 : 5) * 60e3,
+  default: (isTouchDevice() ? 45 : 15) * 60e3,
+}
 
 export const ROLES = {
   PROMOTOR: { id: 'promotor', label: 'Promotor de Pista', short: 'Promotor', tab: 'promotor' },
@@ -31,10 +44,7 @@ export const USERS = [
   { username: 'recepcion', password: 'Na212121', roleId: 'RECEPCION' },
 ]
 
-export const listPromoters = async () => {
-  const rows = await PROMOTER_DB().toArray()
-  return rows.filter((p) => p.active !== false)
-}
+export const listPromoters = () => firebaseListPromoters()
 
 let session = null
 
@@ -75,8 +85,8 @@ export async function restoreSession() {
     if (!raw) return null
     const data = JSON.parse(raw)
     const staticOk = USERS.some((u) => u.username === data?.username)
-    const promoterOk = staticOk ? false : await PROMOTER_DB().where('username').equals(data?.username || '').first()
-    if ((!staticOk && !promoterOk?.active) || !data?.role?.id || !data?.sessionId) {
+    const promoterOk = staticOk ? false : findByUsername(data?.username || '')
+    if ((!staticOk && !promoterOk) || !data?.role?.id || !data?.sessionId) {
       session = null
       localStorage.removeItem(KEY)
       return null
@@ -104,8 +114,8 @@ export async function validateCredentials(usernameRaw, passwordRaw) {
   const password = String(passwordRaw || '')
   const fixed = USERS.find((u) => u.username === username && u.password === password)
   if (fixed) return { username: fixed.username, role: ROLES[fixed.roleId], legacy: false }
-  const promo = await PROMOTER_DB().where('username').equals(username).first()
-  if (!promo || promo.active === false) return null
+  const promo = findByUsername(username)
+  if (!promo) return null
   const check = await verifyPassword(password, promo.password)
   if (!check.match) return null
   return {
@@ -113,6 +123,7 @@ export async function validateCredentials(usernameRaw, passwordRaw) {
     role: ROLES.PROMOTOR,
     legacy: check.legacy,
     stored: check.legacy ? null : check.stored,
+    promoterId: promo.id,
   }
 }
 
@@ -150,7 +161,7 @@ export async function login(usernameRaw, passwordRaw) {
   let stored = creds.stored
   if (creds.legacy) {
     stored = await hashPassword(String(passwordRaw || ''))
-    await PROMOTER_DB().where('username').equals(creds.username).modify({ password: stored })
+    if (creds.promoterId) await updatePromoter(creds.promoterId, { password: stored })
   }
   session = {
     username: creds.username,
@@ -177,10 +188,9 @@ export async function logout() {
 
 export async function resetAll() {
   window.location.hash = '#/login'
-  await db.delete()
-  await db.open()
+  session = null
   localStorage.removeItem(KEY)
-  await import('../db/seed.js').then((m) => m.seed())
+  await resetFirebase()
 }
 
 export async function ensureOpenBox() {

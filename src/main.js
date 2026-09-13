@@ -1,54 +1,72 @@
 import './style.css'
 import { registerSW } from 'virtual:pwa-register'
+import { ensureAuth } from './firebase.js'
+import { initData, checkConnection } from './db/index.js'
 import { seed } from './db/seed.js'
 import { restoreSession, getSession, logout, touch, isSessionExpired, isIdleExpired } from './auth/index.js'
+import { ensureDefaultPromoter, startPromotersSync } from './promoters/firebase-promoters.js'
 import { startRouter, navigate } from './router.js'
 import { icon } from './ui/icons.js'
 import { toast } from './ui/components.js'
 
 registerSW({ immediate: true })
 
-function setupNetStatus() {
-  const pill = document.createElement('div')
-  pill.id = 'netpill'
-  pill.className = 'netpill'
-  pill.innerHTML = `${icon('wifi-off', 14, 2)} <span>Modo autónomo · sin conexión</span>`
-  document.body.appendChild(pill)
+let blocked = false
 
-  const update = () => {
-    pill.classList.toggle('offline', !navigator.onLine)
+function blocker() {
+  let el = document.getElementById('netblock')
+  if (!el) {
+    el = document.createElement('div')
+    el.id = 'netblock'
+    el.className = 'netblock'
+    el.innerHTML = `
+      <div class="netblock-card">
+        <div class="netblock-icon">${icon('wifi-off', 30, 2)}</div>
+        <h2>Se requiere internet para operar</h2>
+        <p>La aplicación sincroniza sus datos en la nube en tiempo real. Reconectate para continuar.</p>
+      </div>`
+    document.body.appendChild(el)
   }
-  window.addEventListener('online', update)
-  window.addEventListener('offline', update)
-  update()
+  el.classList.add('show')
 }
 
-function setupIdleGuard() {
-  const events = ['pointerdown', 'keydown', 'touchstart', 'wheel']
-  const onActivity = () => touch()
-  events.forEach((t) => window.addEventListener(t, onActivity, { passive: true }))
-  setInterval(async () => {
-    if (!getSession()) return
-    if (isSessionExpired()) {
-      await logout()
-      toast('Sesión vencida · iniciá sesión de nuevo')
-      navigate('login', true)
-      return
-    }
-    if (isIdleExpired()) {
-      await logout()
-      toast('Sesión cerrada por inactividad')
-      navigate('login', true)
-    }
-  }, 15000)
+function unblock() {
+  const el = document.getElementById('netblock')
+  if (el) el.classList.remove('show')
+}
+
+function setupNetStatus() {
+  window.addEventListener('offline', () => {
+    blocked = true
+    blocker()
+  })
+  window.addEventListener('online', () => {
+    if (!blocked) return
+    blocked = false
+    setTimeout(() => window.location.reload(), 800)
+  })
 }
 
 async function boot() {
+  try {
+    await ensureAuth()
+    await checkConnection()
+  } catch {
+    blocked = true
+    blocker()
+    return
+  }
+
+  await initData()
   await seed()
+  await ensureDefaultPromoter()
+  await startPromotersSync()
   await restoreSession()
+
   setupNetStatus()
   startRouter()
   setupIdleGuard()
+  if (blocked) unblock()
 }
 
 boot()

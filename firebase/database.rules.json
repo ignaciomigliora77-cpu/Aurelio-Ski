@@ -1,0 +1,18 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "catalog": { ".read": "auth != null", ".write": "auth != null" },
+    "orders": { ".read": "auth != null", ".write": "auth != null" },
+    "rentals": { ".read": "auth != null", ".write": "auth != null" },
+    "boxes": { ".read": "auth != null", ".write": "auth != null" },
+    "links": { ".read": "auth != null", ".write": "auth != null" },
+    "incidents": { ".read": "auth != null", ".write": "auth != null" },
+    "meta": { ".read": "auth != null", ".write": "auth != null" },
+    "promotores": { ".read": "auth != null", ".write": "auth != null" },
+    "audit": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    }
+  }
+}

@@ -1,6 +1,7 @@
-import { ORDERS, RENTALS, CATALOG, META, PROMOTER_DB, INCIDENTS, AUDIT } from '../../db/index.js'
+import { ORDERS, RENTALS, CATALOG, META, INCIDENTS, AUDIT, subscribeData } from '../../db/index.js'
 import { CATEGORIES, CATEGORY_IDS, categoryOf } from '../../db/categories.js'
 import { getSession, logout, listPromoters, resetAll } from '../../auth/index.js'
+import { addPromoter, updatePromoter, removePromoter, subscribePromoters } from '../../promoters/firebase-promoters.js'
 import { navigate } from '../../router.js'
 import { icon } from '../../ui/icons.js'
 import { money, esc, fmtTime, fmtDate, fmtDateTime, ok, haptic, err, uid, openSheet } from '../../ui/components.js'
@@ -8,7 +9,6 @@ import { cleanText, slugUser, passValid, cleanDoc, cleanMoney, cleanInt } from '
 import { logAudit, verifyAudit } from '../../db/audit.js'
 import { approveOrder, confirmReturn, closeIncident, deleteSale, anularSale, runCritical } from '../../db/ops.js'
 import { confirmCritical } from '../../ui/confirm.js'
-import { syncNotify, onSync } from '../../ui/sync.js'
 import './recepcion.css'
 
 const SECTIONS = [
@@ -241,7 +241,6 @@ function renderAprobarTab() {
       try {
         const res = await approveOrder(oId, { currency, doc, actor: s.username, rates: state.rates })
         ok(`Venta ${res.code} aprobada · bolsa ${res.bag}`)
-        syncNotify()
         haptic([30, 40, 60])
         delete curSel[oId]
         await refresh(true)
@@ -299,7 +298,6 @@ function renderDevolverTab() {
       try {
         const n = await confirmReturn(b.dataset.confirm, s.username)
         ok(`Orden ${b.dataset.confirm} cerrada · ${n} ítem${n !== 1 ? 's' : ''}`)
-        syncNotify()
         haptic([20, 40, 30])
         await refresh(true)
       } catch (e) {
@@ -559,7 +557,6 @@ function renderVentas() {
       try {
         await deleteSale(o.id, tok, s.username)
         ok(`Venta ${o.code} eliminada · registrada en auditoría`)
-        syncNotify()
         haptic([20, 40, 20])
         await refresh(true)
       } catch (e) {
@@ -590,9 +587,8 @@ function renderVentas() {
         const s = getSession()
         try {
           await anularSale(o.id, { note, token: tok, actor: s.username })
-          ok(`Nota de anulación registrada · ${o.code}`)
-          syncNotify()
-          haptic([20, 40, 20])
+ok(`Nota de anulación registrada · ${o.code}`)
+        haptic([20, 40, 20])
           await refresh(true)
         } catch (e) {
           err(e?.message || 'No se pudo registrar la anulación')
@@ -798,7 +794,7 @@ function openPromoterForm() {
     if (isNaN(pct) || pct < 0 || pct > 100) return err('Porcentaje inválido')
     if (promoterByName(username) || ROLES_FIXED.has(username)) return err(`Ya existe el usuario ${username}`)
     const stored = await hashForPromoter(password)
-    await PROMOTER_DB().add({ id: uid(), username, password: stored, pct, active: true, createdAt: Date.now() })
+    await addPromoter({ id: uid(), username, password: stored, pct })
     await logAudit(s.username, 'promotor.crear', username, { pct })
     ok(`Promotor ${username} dado de alta`)
     haptic(12)
@@ -865,7 +861,7 @@ function openPromoterEdit(username) {
       const all = await ORDERS().toArray()
       await Promise.all(all.filter((o) => o.promoterId === username).map((o) => ORDERS().update(o.id, { promoterId: newUser })))
     }
-    await PROMOTER_DB().update(pr.id, { username: newUser, password: passwordFinal, pct })
+    await updatePromoter(pr.id, { username: newUser, password: passwordFinal, pct })
     await logAudit(s.username, 'promotor.editar', newUser, { pct, authChanged: !!rawPass })
     ok(`Promotor ${newUser} actualizado`)
     haptic([20, 30])
@@ -882,7 +878,7 @@ function openPromoterEdit(username) {
     close()
     try {
       await runCritical(tok, 'promotor.eliminar', username, async () => {
-        await PROMOTER_DB().delete(prRow.id)
+        await removePromoter(prRow.id)
         await logAudit(s.username, 'promotor.eliminar', username, {})
       })
       ok(`Promotor ${username} eliminado`)
@@ -1138,7 +1134,7 @@ async function renderAuditoria() {
 
       <div class="card aud-card" style="margin-bottom:14px">
         <div class="page-head" style="padding:12px 18px">
-          <div class="grow"><div class="eyebrow">Cada registro se enlaza con el hash del anterior (SHA-256)</div></div>
+          <div class="grow"><div class="eyebrow">Cada registro se enlaza con el hash del anterior (cadena global)</div></div>
           <button class="btn btn--sm" id="au-verify" type="button">${icon('doc', 15, 2)} Re-verificar</button>
         </div>
         <div class="aud-wrap">
@@ -1224,6 +1220,7 @@ async function checkPending() {
 }
 
 export function recepcionView() {
+  let promoOff = null
   const mount = async (root) => {
     rootEl = root
     const s = getSession()
@@ -1303,7 +1300,11 @@ export function recepcionView() {
     lastPending = pending().length
     ticker = setInterval(checkPending, 4000)
     syncOff?.()
-    syncOff = onSync(() => {
+    syncOff = subscribeData(() => {
+      if (rootEl && !document.querySelector('.sheet')) refresh(true)
+    })
+    promoOff?.()
+    promoOff = subscribePromoters(() => {
       if (rootEl) refresh(true)
     })
 
@@ -1317,6 +1318,8 @@ export function recepcionView() {
     ticker = null
     syncOff?.()
     syncOff = null
+    promoOff?.()
+    promoOff = null
     document.removeEventListener('ventas:new', onVentasNew)
     rootEl = null
     panelEl = null

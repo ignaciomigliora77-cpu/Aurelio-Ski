@@ -1,13 +1,13 @@
-import { db } from './index.js'
+import { CATALOG } from './index.js'
 
 async function migrateLegacy() {
-  const snow = await db.catalog.where('id').equals('p03').first()
+  const snow = await CATALOG().where('id').equals('p03').first()
   if (snow && snow.category === 'botas' && snow.name === 'Bota de snow') {
-    await db.catalog.update('p03', { category: 'botasSnow' })
+    await CATALOG().update('p03', { category: 'botasSnow' })
   }
-  const esqui = await db.catalog.filter((i) => /esquí/i.test(i.name || '')).toArray()
+  const esqui = await CATALOG().filter((i) => /esquí/i.test(i.name || '')).toArray()
   for (const it of esqui) {
-    await db.catalog.update(it.id, { name: it.name.replace(/esquí/gi, 'Ski') })
+    await CATALOG().update(it.id, { name: it.name.replace(/esquí/gi, 'Ski') })
   }
 }
 
@@ -28,19 +28,12 @@ const seedData = () => [
 ]
 
 export async function seed(force = false) {
-  const count = await db.catalog.count()
+  const count = CATALOG().count()
   if (count > 0 && !force) {
     await migrateLegacy()
     return false
   }
-  if (force) await db.catalog.clear()
-  await db.catalog.bulkAdd(seedData())
-
-  const hasPromoters = (await db.promoters.count()) > 0
-  if (!hasPromoters) {
-    await db.promoters.bulkAdd([
-      { id: 'pr-1', username: 'promotor', password: 'Na212121', pct: 0, active: true, createdAt: Date.now() },
-    ])
-  }
+  if (force) await CATALOG().clear()
+  await CATALOG().bulkAdd(seedData())
   return true
 }

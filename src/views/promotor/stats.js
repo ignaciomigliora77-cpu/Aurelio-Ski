@@ -1,4 +1,4 @@
-import { ORDERS } from '../../db/index.js'
+import { ORDERS, subscribeData } from '../../db/index.js'
 import { getSession } from '../../auth/index.js'
 import { money } from '../../ui/components.js'
 
@@ -29,6 +29,7 @@ function metricCard(label, value, tone = '', sub = '') {
 }
 
 export function statsView() {
+  let dataOff = null
   const mount = async (root) => {
     root.innerHTML = `
       <div class="stats stack">
@@ -61,7 +62,12 @@ export function statsView() {
     }
 
     await paint()
+
+    dataOff?.()
+    dataOff = subscribeData(() => {
+      if (root.isConnected) paint()
+    })
   }
 
-  return { mount, unmount() {} }
+  return { mount, unmount() { dataOff?.(); dataOff = null } }
 }
