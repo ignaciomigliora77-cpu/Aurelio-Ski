@@ -3,7 +3,7 @@ import { getDatabase } from "firebase/database";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAaalQCKGcaCSewAZyyNoZzCH3_Jh0V-MI",
-  databaseURL: "https://aurelio-ski-77530-default-rtdb.firebaseio.com",
+  databaseURL: "https://aurelio-ski-77530-default-rtdb.firebaseio.com/",
   projectId: "aurelio-ski-77530",
   storageBucket: "aurelio-ski-77530.firebasestorage.app",
   messagingSenderId: "483669179979",
@@ -12,5 +12,4 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-
 export const db = getDatabase(app);
