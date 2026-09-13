@@ -13,47 +13,7 @@
     <title>Aurelio SKI</title>
   </head>
   <body>
-    <!--
-      SIMULADOR DE DISPOSITIVOS — TEMPORAL
-      Barra de previsualización para probar MacBook / iPad / iPhone.
-      Se elimina por completo en la fase final de despliegue a producción,
-      cuando la app corra de forma nativa en cada hardware.
-    -->
-    <div id="simibar" role="toolbar" aria-label="Simulador de dispositivos">
-      <div class="simi-brand">
-        <img src="/favicon.svg" alt="Aurelio SKI" width="22" height="22" />
-        <span class="simi-name">Aurelio SKI</span>
-        <span class="simi-tag">Simulador de dispositivos</span>
-      </div>
-      <div class="simi-seg">
-        <button data-dv="phone" type="button" aria-label="Previsualizar en teléfono">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
-            <rect x="7.5" y="3" width="9" height="18" rx="2.6" />
-            <path d="M11 18.2h2" />
-          </svg>
-          Teléfono
-        </button>
-        <button data-dv="tablet" type="button" aria-label="Previsualizar en tablet">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
-            <rect x="4" y="4" width="16" height="16" rx="2.4" />
-            <path d="M11.5 9.5h1" />
-          </svg>
-          Tablet
-        </button>
-        <button data-dv="notebook" type="button" aria-label="Previsualizar en notebook">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="4" y="5" width="16" height="11" rx="1.8" />
-            <path d="M8 20.5h8M12 16v4.5" />
-          </svg>
-          Notebook
-        </button>
-      </div>
-      <span class="simi-size" id="simi-size">—</span>
-    </div>
-
-    <div id="device">
-      <div id="app"></div>
-    </div>
+    <div id="app"></div>
 
     <script type="module" src="/src/main.js"></script>
   </body>
