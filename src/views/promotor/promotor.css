@@ -1,0 +1,116 @@
+.ventas {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.search-wrap {
+  position: sticky;
+  top: 60px;
+  z-index: 10;
+  padding: 6px 0 0;
+  background: linear-gradient(var(--bg) 80%, transparent);
+}
+
+.chips-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin: 0 -20px;
+  padding: 2px 20px 4px;
+  scrollbar-width: none;
+}
+
+.chips-row::-webkit-scrollbar {
+  display: none;
+}
+
+.chips-row .chip {
+  flex: none;
+}
+
+.cartbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  z-index: 45;
+  display: flex;
+  justify-content: center;
+  padding: 0 16px;
+  pointer-events: none;
+}
+
+.cartbar > .row {
+  pointer-events: auto;
+  width: min(100%, 640px);
+  padding: 10px 12px;
+  border-radius: 20px;
+  background: var(--material);
+  -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur);
+  border: 1px solid var(--separator);
+  box-shadow: var(--shadow-3);
+  animation: popIn 0.2s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.cc-line {
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.cc-total {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.presupuesto {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.quote-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  z-index: 45;
+  display: flex;
+  justify-content: center;
+  padding: 0 16px;
+  pointer-events: none;
+}
+
+.qb-card {
+  pointer-events: auto;
+  width: min(100%, 640px);
+  padding: 12px;
+  border-radius: 20px;
+  background: var(--material);
+  -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur);
+  border: 1px solid var(--separator);
+  box-shadow: var(--shadow-3);
+  animation: popIn 0.2s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.qb-line {
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.qb-total {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.qb-lines {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  max-height: 42vh;
+  overflow-y: auto;
+}

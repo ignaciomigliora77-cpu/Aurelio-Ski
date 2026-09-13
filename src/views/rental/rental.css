@@ -1,0 +1,201 @@
+.rental .body-pad {
+  padding-top: 4px;
+}
+
+.rental .page-head {
+  padding: 14px 0 12px;
+  border-bottom: 1px solid var(--separator-soft);
+  margin-bottom: 6px;
+  align-items: flex-start;
+}
+
+.rental .page-head h2 {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.rental .rt-seg {
+  margin-bottom: 14px;
+}
+
+.rental .rt-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rental .rt-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px;
+  background: var(--bg-elev);
+  border: none;
+  border-radius: 22px;
+  box-shadow: var(--shadow-1);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.rental .rt-card:active {
+  transform: scale(0.985);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.rental .rt-card-main {
+  min-width: 0;
+}
+
+.rental .rt-card-name {
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rental .rt-card-sub {
+  margin-top: 3px;
+  color: var(--text-3);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rental .rt-count {
+  flex: none;
+  min-width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0 12px;
+  font-size: 19px;
+  font-weight: 750;
+  color: #fff;
+  background: linear-gradient(135deg, #37e26a, #1fbd55);
+  border-radius: 15px;
+  box-shadow: 0 6px 16px rgba(52, 199, 89, 0.32);
+}
+
+.rental .rt-ticket-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.rental .rt-bag {
+  flex: none;
+  padding: 10px 14px;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1.5px dashed var(--accent);
+  border-radius: 14px;
+}
+
+.rental .rt-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ---------- Animación de entrega ---------- */
+
+.rt-anim {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+  animation: rt-fade 0.25s ease both;
+}
+
+.rt-anim-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 28px;
+  text-align: center;
+}
+
+.rt-anim-check {
+  width: 92px;
+  height: 92px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: linear-gradient(135deg, #37e26a, #1f9d4c);
+  border-radius: 50%;
+  box-shadow: 0 18px 44px rgba(52, 199, 89, 0.4);
+  animation: rt-pop 0.5s cubic-bezier(0.22, 1.6, 0.36, 1) both;
+}
+
+.rt-anim-title {
+  font-size: 22px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  animation: rt-rise 0.4s 0.2s ease both;
+}
+
+.rt-anim-sub {
+  color: var(--text-3);
+  font-size: 14px;
+  animation: rt-rise 0.4s 0.32s ease both;
+}
+
+.rt-anim-bar {
+  width: 220px;
+  height: 6px;
+  margin-top: 14px;
+  overflow: hidden;
+  background: var(--fill);
+  border-radius: 999px;
+}
+
+.rt-anim-bar span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #37e26a, #1fbd55);
+  border-radius: 999px;
+  animation: rt-fill 3s linear both;
+}
+
+.rt-anim.done {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+@keyframes rt-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes rt-pop {
+  from { transform: scale(0.4); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes rt-rise {
+  from { transform: translateY(10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes rt-fill {
+  from { width: 0; }
+  to { width: 100%; }
+}
