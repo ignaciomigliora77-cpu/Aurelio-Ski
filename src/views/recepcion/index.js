@@ -794,6 +794,7 @@ function openPromoterForm() {
     const s = getSession()
     if (!username) return err('Usuario inválido · solo minúsculas, números, guiones y puntos')
     if (!password) return err('La contraseña debe tener al menos 6 caracteres')
+    if (/^pbkdf2\$/.test(password)) return err('Contraseña inválida')
     if (isNaN(pct) || pct < 0 || pct > 100) return err('Porcentaje inválido')
     if (promoterByName(username) || ROLES_FIXED.has(username)) return err(`Ya existe el usuario ${username}`)
     const stored = await hashForPromoter(password)
@@ -831,7 +832,7 @@ function openPromoterEdit(username) {
         </div>
         <div class="field">
           <label for="pr-edit-pass">Contraseña</label>
-          <input class="input" id="pr-edit-pass" type="password" value="${esc(pr.password || '')}" autocomplete="new-password" />
+          <input class="input" id="pr-edit-pass" type="password" placeholder="Dejar en blanco para no cambiar" autocomplete="new-password" />
         </div>
         <div class="field">
           <label for="pr-edit-pct">Comisión / ganancia (%)</label>
@@ -856,6 +857,7 @@ function openPromoterEdit(username) {
     if (rawPass) {
       const valid = passValid(rawPass)
       if (!valid) return err('La contraseña debe tener al menos 6 caracteres')
+      if (/^pbkdf2\$/.test(valid)) return err('Contraseña inválida')
       passwordFinal = await hashForPromoter(valid)
     }
     if (newUser !== username) {
