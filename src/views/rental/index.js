@@ -24,6 +24,13 @@ const ANIM_MS = 3000
 
 const session = () => getSession()
 
+const isEditableFocused = () => {
+  const el = document.activeElement
+  if (!el) return false
+  const tag = el.tagName
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || !!el.isContentEditable
+}
+
 const groupItems = (o) => (o.items || []).filter((it) => itemGroup(it) === profile)
 
 const itemGroup = (it) => {
@@ -220,7 +227,7 @@ function renderReturns() {
             <div class="rt-card-name">${esc(g.clientName || 'Cliente')}</div>
             <div class="rt-card-sub">Bolsa ${bagLabel(g.bag)} · entregada ${fmtDate(g.outAt)} ${fmtTime(g.outAt)}</div>
           </div>
-          <div class="rt-count">${qty}</div>
+          <div class="rt-count rt-count--alert">${qty}</div>
         </button>`
       }).join('')}
     </div>
@@ -241,10 +248,10 @@ function openReturn(orderCode) {
     title: 'Devolución',
     body: `
       <div class="rt-ticket-head">
-        <div class="rt-avatar">${icon('check', 20, 2)}</div>
+        <div class="rt-avatar rt-avatar--alert">${icon('check', 20, 2)}</div>
         <div class="grow">
           <div class="rt-card-name">${firstName ? esc(firstName) : 'Cliente'}</div>
-          <div class="rt-bag-label">Bolsa ${bagLabel(bag)}</div>
+          <div class="rt-bag-label rt-bag--alert">Bolsa ${bagLabel(bag)}</div>
         </div>
       </div>
       <div class="mutest" style="font-size:12px;margin:2px 0 10px">Artículos que trajo de vuelta · revisión rápida</div>
@@ -254,9 +261,9 @@ function openReturn(orderCode) {
             <div class="row-thumb">${icon('check', 18, 2)}</div>
             <div class="row-main">
               <div class="row-title">${esc(r.name)}</div>
-              <div class="row-sub">Cantidad ${r.qty || 1}</div>
+              <div class="row-sub rt-qty-alert">Cantidad ${r.qty || 1}</div>
             </div>
-            <span class="amount" style="font-weight:600">× ${r.qty || 1}</span>
+            <span class="amount rt-qty-alert" style="font-weight:600">× ${r.qty || 1}</span>
           </div>`).join('')}
       </div>
 
@@ -347,7 +354,7 @@ function paint() {
   bodyEl.innerHTML = `
     <div class="segmented rt-seg" id="rt-seg">
       <button data-t="activos" class="${state.tab === 'activos' ? 'on' : ''}">${icon('ticket', 14, 2)} Activos (${activos})</button>
-      <button data-t="devolver" class="${state.tab === 'devolver' ? 'on' : ''} ${devolver ? 'rt-danger' : ''}">${icon('box', 14, 2)} A devolver (${devolver})</button>
+      <button data-t="devolver" class="${state.tab === 'devolver' ? 'on' : ''} ${devolver ? 'rt-danger' : ''}">${icon('box', 14, 2)} A devolver${devolver ? ` <span class="rt-count-pill rt-count-pill--alert">${devolver}</span>` : ''}</button>
     </div>
     <div id="rt-body" class="rt-body"></div>
   `
@@ -413,10 +420,12 @@ export function rentalView(profileName) {
     paint()
     dataOff?.()
     dataOff = subscribeData(async () => {
-      if (rootEl && !document.querySelector('.sheet')) {
-        await refresh()
-        paint()
-      }
+      /* Los datos en tiempo real fluyen y re-renderizan #rt-body siempre,
+         sin importar si hay modales abiertas (viven en #app, no se tocan).
+         Solo se omite el paint si el foco está en un campo editable. */
+      if (!rootEl || isEditableFocused()) return
+      await refresh()
+      paint()
     })
   }
 

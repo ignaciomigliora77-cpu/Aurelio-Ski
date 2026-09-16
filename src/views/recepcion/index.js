@@ -10,6 +10,7 @@ import { money, esc, fmtTime, fmtDate, fmtDateTime, ok, haptic, err, uid, openSh
 import { cleanText, slugUser, passValid, cleanDoc, cleanMoney, cleanInt } from '../../ui/sanitize.js'
 import { logAudit, verifyAudit } from '../../db/audit.js'
 import { approveOrder, confirmReturn, closeIncident, deleteSale, anularSale, runCritical } from '../../db/ops.js'
+import { archiveSeason } from '../../db/historico.js'
 import { confirmCritical } from '../../ui/confirm.js'
 import './recepcion.css'
 
@@ -41,6 +42,13 @@ let state = {
   rates: { usd: 1200, brl: 220 },
 }
 const curSel = {}
+
+const isEditableFocused = () => {
+  const el = document.activeElement
+  if (!el) return false
+  const tag = el.tagName
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || !!el.isContentEditable
+}
 
 const startOfDay = () => {
   const d = new Date()
@@ -1377,6 +1385,7 @@ export function recepcionView() {
             </div>
             <div class="row">
               <button class="btn btn--sm btn--ghost" id="logout" type="button">Cerrar Sesión</button>
+              <button class="btn btn--sm btn--danger" id="archive" type="button">Cerrar temporada</button>
               <button class="btn btn--sm btn--danger" id="reset" type="button">Reiniciar todos los datos</button>
             </div>
           </div>
@@ -1420,6 +1429,31 @@ export function recepcionView() {
       navigate('login', true)
     })
 
+    root.querySelector('#archive').addEventListener('click', async () => {
+      haptic(10)
+      const count = orders.length + rentals.length + incidents.length
+      const tok = await confirmCritical({
+        action: 'temporada.cerrar',
+        target: 'temporada actual',
+        word: 'CERRAR',
+        note: `Se archiva TODO en /historico (${count} registros · ventas, entregas, incidencias, bolsas y links). La temporada arranca desde cero y la bolsa vuelve a 1. No se puede deshacer.`,
+      })
+      if (!tok) return
+      try {
+        const res = await archiveSeason({ actor: getSession()?.username })
+        ok(`Temporada archivada en ${res.month}/${res.year}`)
+        await load()
+        section = 'resumen'
+        paint()
+      } catch (e) {
+        if (e?.code === 'ARCHIVADO') {
+          err('Ese mes ya está archivado · viene del Historial')
+        } else {
+          err(e?.message || 'No se pudo cerrar la temporada')
+        }
+      }
+    })
+
     root.querySelectorAll('.sidebar-link[data-sec]').forEach((b) => {
       b.addEventListener('click', () => {
         section = b.dataset.sec
@@ -1433,7 +1467,7 @@ export function recepcionView() {
     ticker = setInterval(checkPending, 4000)
     syncOff?.()
     syncOff = subscribeData(() => {
-      if (rootEl && !document.querySelector('.sheet')) refresh(true)
+      if (rootEl && !isEditableFocused()) refresh(true)
     })
     promoOff?.()
     promoOff = subscribePromoters(() => {

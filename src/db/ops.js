@@ -44,23 +44,34 @@ export async function approveOrder(orderId, { currency, doc, actor, rates }) {
   const rate = currency === 'ars' ? null : Number(rates?.[currency])
   const cur = rate ? +(Number(o.total) / rate).toFixed(2) : null
   if (currency !== 'ars' && !rate) throw fail('Falta el tipo de cambio de la divisa', 'RATE_REQUIRED')
-  await ORDERS().txOne(orderId, (fresh) => {
-    if (!fresh) throw fail('Venta no encontrada', 'NOT_FOUND')
-    if (fresh.state !== 'pendiente' || fresh.bag) throw fail('La venta ya fue procesada', 'ALREADY')
-    const at = Date.now()
-    return {
-      ...fresh,
-      state: 'aprobada',
-      currency,
-      doc,
-      bag,
-      cashier: actor,
-      approvedAt: at,
-      validatedAt: at,
-      rev: (fresh.rev || 0) + 1,
-      fx: { rate, ars: fresh.total, cur },
+  try {
+    await ORDERS().txOne(orderId, (fresh) => {
+      if (!fresh) throw fail('Venta no encontrada', 'NOT_FOUND')
+      if (fresh.state !== 'pendiente' || fresh.bag) throw fail('La venta ya fue procesada', 'ALREADY')
+      const at = Date.now()
+      return {
+        ...fresh,
+        state: 'aprobada',
+        currency,
+        doc,
+        bag,
+        cashier: actor,
+        approvedAt: at,
+        validatedAt: at,
+        rev: (fresh.rev || 0) + 1,
+        fx: { rate, ars: fresh.total, cur },
+      }
+    })
+  } catch (e) {
+    /* Si la venta no se pudo congelar (doble aprobación / doble dispositivo),
+       se devuelve el número de bolsa al contador para no dejar saltos en el
+       correlativo 1–200. */
+    if (e?.code === 'ALREADY' || String(e?.message || '').includes('ya fue procesada')) {
+      const prev = ((bag - 2 + BAG_MAX) % BAG_MAX) + 1
+      await META().txOne('_bag', (fresh) => ({ next: prev }))
     }
-  })
+    throw e
+  }
   await logAudit(actor, 'venta.aprobar', o.code, { bag, currency, rate, cur, ars: o.total, itemQty: o.itemQty, client: o.clientName })
   return { code: o.code, bag }
 }

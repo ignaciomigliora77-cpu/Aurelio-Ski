@@ -35,6 +35,7 @@ export const ROLES = {
   EQUIPO: { id: 'equipo', label: 'Equipo SKI', short: 'Equipo SKI', tab: 'equipo' },
   ROPA: { id: 'ropa', label: 'Ropa / Indumentaria', short: 'Ropa', tab: 'ropa' },
   RECEPCION: { id: 'recepcion', label: 'Recepción', short: 'Recepción', tab: 'recepcion' },
+  HISTORIAL: { id: 'historial', label: 'Historial', short: 'Historial', tab: 'historial' },
 }
 
 /*
@@ -49,6 +50,7 @@ export const USERS = [
   { username: 'equipo', password: 'Na212121', roleId: 'EQUIPO' },
   { username: 'ropa', password: 'Na212121', roleId: 'ROPA' },
   { username: 'recepcion', password: 'Na212121', roleId: 'RECEPCION' },
+  { username: 'historial', password: 'Na212121', roleId: 'HISTORIAL' },
 ]
 
 export const listPromoters = () => firebaseListPromoters()
@@ -185,7 +187,7 @@ export async function login(usernameRaw, passwordRaw) {
   }
   persist()
   lastActivity = Date.now()
-  await openBoxFor(session)
+  if (session.role.id !== 'historial') await openBoxFor(session)
   await logAudit(session.username, 'auth.login', 'sesión', { role: session.role.id })
   return session
 }

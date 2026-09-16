@@ -120,6 +120,43 @@
   box-shadow: 0 6px 18px rgba(255, 59, 48, 0.28);
 }
 
+.rental .rt-count-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.rental .rt-count-pill--alert {
+  color: #fff;
+  background: var(--red);
+  box-shadow: 0 4px 12px rgba(255, 59, 48, 0.32);
+}
+
+.rental .rt-count--alert {
+  background: linear-gradient(135deg, #ff6b62, #ff3b30);
+  box-shadow: 0 6px 16px rgba(255, 59, 48, 0.32);
+}
+
+.rental .rt-avatar--alert {
+  color: var(--red);
+  background: var(--red-soft);
+}
+
+.rental .rt-bag--alert {
+  color: var(--red);
+}
+
+.rental .rt-qty-alert {
+  color: var(--red);
+}
+
 .rental .rt-items {
   display: flex;
   flex-direction: column;

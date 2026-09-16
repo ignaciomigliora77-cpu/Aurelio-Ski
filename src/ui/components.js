@@ -118,7 +118,7 @@ function openLayer(kind, { title, body, footer, onClose }) {
   const overlay = document.createElement('div')
   overlay.className = 'overlay'
   const layer = document.createElement('div')
-  layer.className = kind
+  layer.className = `${kind} glass-modal`
 
   const close = () => {
     overlay.remove()

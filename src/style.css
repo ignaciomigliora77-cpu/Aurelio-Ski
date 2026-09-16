@@ -285,12 +285,23 @@ ul {
   border-radius: var(--radius);
 }
 
+/* Superficie de vidrio de todos los modales (sheet + popover). Una única
+   definición garantiza que Activo / Devolver y cualquier otra modal del
+   sistema compartan exactamente las mismas propiedades. */
+.glass-modal {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: var(--glass-border);
+}
+
 /* Aceleración por hardware: evita parpadeo/recorte del backdrop-filter en
    Safari iOS y estabiliza las sombras sobre superficies translúcidas. */
 .material,
 .material-2,
 .material-3,
 .glass-card,
+.glass-modal,
 .topbar,
 .dock,
 .sidebar,
@@ -1284,10 +1295,6 @@ ul {
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
-  background: var(--material);
-  -webkit-backdrop-filter: blur(40px) saturate(200%);
-  backdrop-filter: blur(40px) saturate(200%);
-  border: 1px solid var(--separator);
   border-bottom: none;
   border-radius: 26px 26px 0 0;
   box-shadow: var(--shadow-3);
@@ -1345,10 +1352,6 @@ ul {
   transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;
-  background: var(--glass-bg);
-  -webkit-backdrop-filter: blur(40px) saturate(200%);
-  backdrop-filter: blur(40px) saturate(200%);
-  border: var(--glass-border);
   border-radius: var(--r-squircle-lg);
   box-shadow: var(--shadow-3);
   animation: popoverIn 0.32s var(--ease-app);

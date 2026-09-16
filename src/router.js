@@ -8,6 +8,7 @@ const ROUTES = [
   { path: 'botas', role: 'botas', load: () => import('./views/rental/index.js').then((m) => m.rentalView('botas')) },
   { path: 'ropa', role: 'ropa', load: () => import('./views/rental/index.js').then((m) => m.rentalView('ropa')) },
   { path: 'recepcion', role: 'recepcion', load: () => import('./views/recepcion/index.js').then((m) => m.recepcionView()) },
+  { path: 'historial', role: 'historial', load: () => import('./views/historial/index.js').then((m) => m.historialView()) },
 ]
 
 let current = null

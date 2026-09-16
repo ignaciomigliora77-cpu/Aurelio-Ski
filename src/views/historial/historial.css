@@ -1,0 +1,44 @@
+/* Historial · comparte el sistema de tablas y métricas de Recepción */
+.hist-shell .panel {
+  min-height: 100svh;
+}
+
+.hist-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin: 14px 0 18px;
+}
+
+.hist-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--mutest);
+}
+
+.hist-field select {
+  min-width: 128px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--separator);
+  background: var(--card-bg);
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+  font-family: inherit;
+}
+
+.hist-seg {
+  margin-bottom: 16px;
+}
+
+@media (max-width: 640px) {
+  .hist-bar {
+    flex-wrap: wrap;
+  }
+  .hist-field select {
+    min-width: 112px;
+  }
+}

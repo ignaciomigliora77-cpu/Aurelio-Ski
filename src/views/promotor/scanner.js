@@ -28,11 +28,20 @@ const normalize = (raw) => String(raw || '').trim().toUpperCase().replace(/\u200
 
 const cameraErrMessage = (e) => {
   const name = e?.name || ''
-  if (name === 'NotAllowedError' || name === 'SecurityError') return 'Permiso de cámara denegado · tocá Activar cámara o habilitalo en el navegador'
+  if (name === 'NotAllowedError' || name === 'SecurityError') return 'Permiso de cámara denegado · habilitalo en el navegador'
   if (name === 'NotFoundError' || name === 'DevicesNotFoundError') return 'No se detectó ninguna cámara en este dispositivo · usá el código manual'
   if (name === 'NotReadableError' || name === 'TrackStartError') return 'La cámara está en uso por otra app · cerrá la otra y reintentá'
   if (name === 'OverconstrainedError') return 'No hay una cámara compatible · usá la trasera o el código manual'
   return 'No se pudo iniciar la cámara · usá el código manual o reintentá'
+}
+
+const cameraErrTitle = (e) => {
+  const name = e?.name || ''
+  if (name === 'NotAllowedError' || name === 'SecurityError') return 'Permiso de cámara denegado'
+  if (name === 'NotFoundError' || name === 'DevicesNotFoundError') return 'Cámara no encontrada'
+  if (name === 'NotReadableError' || name === 'TrackStartError') return 'Cámara en uso'
+  if (name === 'OverconstrainedError') return 'Cámara no compatible'
+  return 'No se pudo iniciar la cámara'
 }
 
 function overlayEl() {
@@ -130,13 +139,17 @@ async function startCamera() {
       audio: false,
     })
     video.srcObject = stream
-    await video.play()
-    loopId = setInterval(tick, 300)
     hideOverlay()
+    /* play() no se espera: un rechazo de autoplay (Safari iOS) NO debe matar
+       el stream ni mostrar un error falso. tick() reintenta el play mientras
+       el stream siga vivo. El estado del visor depende SOLO del stream. */
+    const p = video.play()
+    if (p && typeof p.catch === 'function') p.catch(() => {})
+    loopId = setInterval(tick, 300)
     haptic(12)
   } catch (e) {
     stopCamera()
-    setOverlay('Cámara apagada', cameraErrMessage(e))
+    setOverlay(cameraErrTitle(e), cameraErrMessage(e))
     showOverlay()
   } finally {
     starting = false
@@ -164,10 +177,10 @@ function pauseCamera() {
 
 async function resumeCamera() {
   if (!root || document.hidden) return
-  if (stream && video?.videoWidth) {
+  if (stream) {
     loopId = setInterval(tick, 300)
+    if (video && !video.videoWidth) video.play().catch(() => {})
   } else {
-    stopCamera()
     await startCamera()
   }
 }
@@ -194,7 +207,11 @@ document.addEventListener('visibilitychange', () => {
 })
 
 async function tick() {
-  if (!video || !video.videoWidth || busy || cooldown) return
+  if (!video || busy || cooldown) return
+  if (!video.videoWidth) {
+    if (stream && document.visibilityState !== 'hidden') video.play().catch(() => {})
+    return
+  }
   try {
     if ('BarcodeDetector' in window) {
       detector = detector || new BarcodeDetector({ formats: ['qr_code'] })
@@ -234,7 +251,7 @@ export function scannerView() {
           <div class="scanner-overlay" id="sc-overlay" hidden>
             <div class="scanner-overlay-inner">
               <div class="scanner-overlay-icon">${icon('camera', 26, 2)}</div>
-              <div class="scanner-overlay-title" id="sc-ov-title">Cámara apagada</div>
+              <div class="scanner-overlay-title" id="sc-ov-title">Cámara inactiva</div>
               <div class="scanner-overlay-sub" id="sc-ov-sub"></div>
               <button class="btn btn--accent" id="sc-start" type="button">${icon('camera', 18, 2)} Activar cámara</button>
             </div>
@@ -275,6 +292,8 @@ export function scannerView() {
     })
 
     root.querySelector('#sc-start').addEventListener('click', startCamera)
+    setOverlay('Cámara inactiva', 'Activá la cámara para escanear el código QR, o usá el ingreso manual.')
+    showOverlay()
     requestPermissionAndStart()
   }
 
