@@ -1,7 +1,14 @@
 import { icon } from './icons.js'
 
 export const money = (n) =>
-  '$ ' + Math.round(n).toLocaleString('es-AR')
+  '$\u00A0' + Math.round(n).toLocaleString('es-AR')
+
+export const titleCase = (s) =>
+  String(s ?? '')
+    .toLowerCase()
+    .split(/\s+/)
+    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+    .join(' ')
 
 export const esc = (s) =>
   String(s ?? '')

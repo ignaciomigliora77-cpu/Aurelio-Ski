@@ -3,48 +3,27 @@
    ========================================================================== */
 
 :root {
-  --bg: #f2f2f7;
-  --bg-elev: #ffffff;
-  --material: rgba(255, 255, 255, 0.78);
-  --material-2: rgba(255, 255, 255, 0.66);
-  --material-3: rgba(249, 249, 251, 0.9);
-  --separator: rgba(60, 60, 67, 0.18);
-  --separator-soft: rgba(60, 60, 67, 0.08);
-  --fill: rgba(120, 120, 128, 0.13);
-  --fill-strong: rgba(120, 120, 128, 0.22);
+  /* Derivadas del tema canónico definido en src/styles/theme.css.
+     Las var() se resuelven en tiempo de cómputo por elemento, de modo que el
+     bloque @media (prefers-color-scheme: dark) de theme.css fluye hacia aquí. */
+  --bg: var(--bg-main);
+  --material: var(--glass-bg);
+  --material-2: var(--glass-bg-2);
+  --material-3: var(--glass-bg-2);
+  --text: var(--text-primary);
+  --text-2: var(--text-secondary);
+  --text-3: var(--text-tertiary);
 
-  --text: #1d1d1f;
-  --text-2: rgba(60, 60, 67, 0.62);
-  --text-3: rgba(60, 60, 67, 0.32);
-
-  --accent: #007aff;
-  --accent-press: #0056d6;
-  --accent-soft: rgba(0, 122, 255, 0.13);
-  --green: #34c759;
-  --green-soft: rgba(52, 199, 89, 0.15);
-  --red: #ff3b30;
-  --red-soft: rgba(255, 59, 48, 0.14);
-  --orange: #ff9500;
-  --orange-soft: rgba(255, 149, 0, 0.15);
-  --yellow: #ffcc00;
-  --purple: #af52de;
-  --purple-soft: rgba(175, 82, 222, 0.14);
-
-  --radius-lg: 20px;
-  --radius: 13px;
-  --radius-sm: 9px;
-
-  --blur: blur(26px) saturate(180%);
-  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.06);
-  --shadow-2: 0 10px 30px rgba(0, 0, 0, 0.12);
-  --shadow-3: 0 26px 64px rgba(0, 0, 0, 0.22);
+  --radius-lg: var(--r-squircle-lg);
+  --radius: var(--r-squircle);
+  --radius-sm: 13px;
 
   --font-sf: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text',
     'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
   --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas,
     monospace;
 
-  color-scheme: light;
+  color-scheme: light dark;
   font-family: var(--font-sf);
   font-size: 17px;
   line-height: 1.45;
@@ -206,6 +185,12 @@ ul {
   letter-spacing: 0.02em;
 }
 
+.num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+  white-space: nowrap;
+}
+
 .tac {
   text-align: center;
 }
@@ -292,11 +277,37 @@ ul {
 }
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--glass-bg);
   -webkit-backdrop-filter: var(--blur);
   backdrop-filter: var(--blur);
-  border: 1px solid rgba(60, 60, 67, 0.1);
+  border: 1px solid var(--glass-border-soft);
   border-radius: var(--radius);
+}
+
+/* Aceleración por hardware: evita parpadeo/recorte del backdrop-filter en
+   Safari iOS y estabiliza las sombras sobre superficies translúcidas. */
+.material,
+.material-2,
+.material-3,
+.glass-card,
+.topbar,
+.dock,
+.sidebar,
+.toast,
+.login-card,
+.pase-hero {
+  transform: translateZ(0);
+  will-change: transform;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+.sheet,
+.toasts,
+#tab-root > :first-child {
+  will-change: transform;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
 /* ---------- Botones ---------- */
@@ -450,7 +461,7 @@ ul {
 }
 
 .segmented button.on {
-  background: #fff;
+  background: var(--bg-elev);
   color: var(--text);
   box-shadow: var(--shadow-1);
 }
@@ -473,7 +484,7 @@ ul {
   width: 100%;
   min-height: 48px;
   padding: 0 16px;
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
   font-size: 17px;
   color: var(--text);
   background: var(--fill);
@@ -488,7 +499,7 @@ ul {
 .input:focus {
   outline: none;
   border-color: var(--accent);
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--glass-bg);
 }
 
 .search {
@@ -727,7 +738,7 @@ ul {
   width: 46px;
   height: 46px;
   flex: none;
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -779,7 +790,7 @@ ul {
   padding: 14px 16px;
   background: var(--bg-elev);
   border: 1px solid var(--separator-soft);
-  border-radius: 16px;
+  border-radius: var(--r-squircle-sm);
   box-shadow: var(--shadow-1);
   transition: transform 0.16s ease, border-color 0.2s ease;
 }
@@ -871,7 +882,7 @@ ul {
   padding: 14px;
   background: var(--bg-elev);
   border: 1px solid var(--separator-soft);
-  border-radius: 16px;
+  border-radius: var(--r-squircle-sm);
   box-shadow: var(--shadow-1);
   transition: transform 0.16s ease, border-color 0.2s ease;
 }
@@ -930,7 +941,7 @@ ul {
   gap: 2px;
   background: var(--fill);
   border: 1px solid var(--separator-soft);
-  border-radius: 11px;
+  border-radius: var(--radius-sm);
   padding: 3px;
 }
 
@@ -973,7 +984,7 @@ ul {
   align-items: center;
   gap: 12px;
   padding: 12px 18px;
-  background: rgba(255, 255, 255, 0.76);
+  background: var(--glass-bg);
   -webkit-backdrop-filter: var(--blur);
   backdrop-filter: var(--blur);
   border-bottom: 1px solid var(--separator-soft);
@@ -1002,11 +1013,11 @@ ul {
   width: min(100%, 420px);
   padding: 7px 8px;
   border-radius: 28px;
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--glass-bg);
   -webkit-backdrop-filter: blur(40px) saturate(200%);
   backdrop-filter: blur(40px) saturate(200%);
-  border: 1px solid rgba(60, 60, 67, 0.16);
-  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.06);
+  border: 1px solid var(--glass-border-soft);
+  box-shadow: var(--glass-shadow), 0 18px 46px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 .dock-item {
@@ -1037,7 +1048,7 @@ ul {
 
 .dock-item.on {
   color: var(--accent);
-  background: rgba(0, 122, 255, 0.09);
+  background: var(--accent-soft);
 }
 
 .dock-item .dot {
@@ -1081,7 +1092,7 @@ ul {
   align-self: stretch;
   display: flex;
   flex-direction: column;
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--glass-bg);
   -webkit-backdrop-filter: var(--blur);
   backdrop-filter: var(--blur);
   border-right: 1px solid var(--separator-soft);
@@ -1134,7 +1145,7 @@ ul {
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   font-size: 15px;
   font-weight: 500;
   color: var(--text-2);
@@ -1183,7 +1194,7 @@ ul {
 
 /* Los viewports de estadísticas/escáner aparecen con entrada animada */
 #tab-root > :first-child {
-  animation: tabIn 0.32s cubic-bezier(0.22, 1.35, 0.36, 1) both;
+  animation: tabIn 0.32s var(--ease-app) both;
 }
 
 @keyframes tabIn {
@@ -1227,7 +1238,7 @@ ul {
   position: fixed;
   inset: 0;
   z-index: 70;
-  background: rgba(17, 17, 22, 0.42);
+  background: var(--scrim);
   -webkit-backdrop-filter: blur(3px);
   backdrop-filter: blur(3px);
   animation: fadeIn 0.2s ease;
@@ -1250,7 +1261,7 @@ ul {
   border-bottom: none;
   border-radius: 26px 26px 0 0;
   box-shadow: var(--shadow-3);
-  animation: sheetUp 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+  animation: sheetUp 0.3s var(--ease-app);
   overflow: hidden;
 }
 
@@ -1258,7 +1269,7 @@ ul {
   width: 40px;
   height: 5px;
   border-radius: 999px;
-  background: rgba(60, 60, 67, 0.24);
+  background: var(--fill-strong);
   margin: 10px auto 4px;
   flex: none;
 }
@@ -1320,17 +1331,17 @@ ul {
   backdrop-filter: var(--blur);
   border: 1px solid var(--separator);
   box-shadow: var(--shadow-2);
-  animation: toastIn 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+  animation: toastIn 0.28s var(--ease-app);
   max-width: min(92vw, 420px);
   width: max-content;
 }
 
 .toast--error {
-  border-color: rgba(255, 59, 48, 0.5);
+  border-color: var(--border-danger);
 }
 
 .toast--success {
-  border-color: rgba(52, 199, 89, 0.5);
+  border-color: var(--border-success);
 }
 
 /* ---------- Escáner ---------- */
@@ -1442,7 +1453,7 @@ ul {
   place-items: center;
   color: #fff;
   background: rgba(255, 255, 255, 0.12);
-  border-radius: 20px;
+  border-radius: var(--radius-lg);
   margin-bottom: 4px;
 }
 
@@ -1479,19 +1490,19 @@ ul {
 
 .scan-result--ok {
   background: var(--green-soft);
-  border: 1px solid rgba(52, 199, 89, 0.45);
+  border: 1px solid var(--border-success);
   color: var(--green);
 }
 
 .scan-result--warn {
   background: var(--orange-soft);
-  border: 1px solid rgba(255, 149, 0, 0.45);
+  border: 1px solid var(--border-warn);
   color: var(--orange);
 }
 
 .scan-result--bad {
   background: var(--red-soft);
-  border: 1px solid rgba(255, 59, 48, 0.45);
+  border: 1px solid var(--border-danger);
   color: var(--red);
 }
 
@@ -1573,10 +1584,10 @@ ul {
   gap: 20px;
   padding: 30px 26px;
   border-radius: 26px;
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--glass-bg);
   -webkit-backdrop-filter: var(--blur);
   backdrop-filter: var(--blur);
-  border: 1px solid rgba(60, 60, 67, 0.12);
+  border: 1px solid var(--glass-border-soft);
   box-shadow: var(--shadow-3);
 }
 
@@ -1591,7 +1602,7 @@ ul {
 .login-logo img {
   width: 74px;
   height: 74px;
-  border-radius: 20px;
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-2);
 }
 
@@ -1679,7 +1690,7 @@ ul {
 }
 
 .pop-in {
-  animation: popIn 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+  animation: popIn 0.24s var(--spring);
 }
 
 /* ---------- Contenedor squircle (superelipse suave) ---------- */

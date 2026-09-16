@@ -2,6 +2,7 @@ import { ref, runTransaction } from 'firebase/database'
 import { db as rtdb } from '../firebase.js'
 import { AUDIT } from './index.js'
 import { uid } from '../ui/components.js'
+import { deviceSnap } from '../ui/device.js'
 
 /*
  * Auditoría append-only con cadena de integridad GLOBAL.
@@ -34,6 +35,10 @@ export const hashOf = (prevHash, at, actor, action, target, detail) =>
   fnv1a([prevHash, at, actor || '-', action || '', target || '', JSON.stringify(detail || {})].join('|'))
 
 export async function logAudit(actor, action, target, detail = {}) {
+  /* El snapshot de dispositivo se anexa primero para que el detalle del
+     llamador tenga prioridad. Entra dentro de la cadena de hash: verifyAudit
+     lo re-computa desde los datos guardados sin romper la integridad. */
+  detail = { ...deviceSnap(), ...detail }
   let entry = null
   await runTransaction(ref(rtdb, AUDIT_PATH), (cur) => {
     cur = cur || {}

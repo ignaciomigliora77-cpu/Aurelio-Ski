@@ -1,3 +1,4 @@
+import './styles/theme.css'
 import './style.css'
 import { registerSW } from 'virtual:pwa-register'
 import { initData } from './db/index.js'
@@ -22,6 +23,7 @@ async function boot() {
   }
   startRouter()
   setupIdleGuard()
+  setupZoomLock()
 }
 
 function setupIdleGuard() {
@@ -34,6 +36,32 @@ function setupIdleGuard() {
       navigate('login', true)
     }
   }, 30000)
+}
+
+/* iOS ignora `user-scalable=no` por accesibilidad: reforzamos el bloqueo de
+   zoom con gestos nativos + supresión de doble-tap (pinch y zoom del doble
+   tap quedan inertes, pero los botones/scroll siguen funcionando). */
+function setupZoomLock() {
+  for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) {
+    document.addEventListener(ev, (e) => e.preventDefault())
+  }
+  document.addEventListener(
+    'touchmove',
+    (e) => {
+      if (e.touches.length > 1) e.preventDefault()
+    },
+    { passive: false }
+  )
+  let lastTap = 0
+  document.addEventListener(
+    'touchend',
+    (e) => {
+      const now = Date.now()
+      if (e.changedTouches?.length === 1 && now - lastTap < 350) e.preventDefault()
+      lastTap = now
+    },
+    { passive: false }
+  )
 }
 
 boot()

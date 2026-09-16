@@ -291,7 +291,7 @@
     overflow-x: auto;
     border-right: none;
     border-bottom: 1px solid var(--separator-soft);
-    background: rgba(255, 255, 255, 0.85);
+    background: var(--glass-bg);
     -webkit-backdrop-filter: blur(26px) saturate(180%);
     backdrop-filter: blur(26px) saturate(180%);
   }
@@ -349,7 +349,7 @@
     overflow-x: auto;
     border-right: none;
     border-bottom: 1px solid var(--separator-soft);
-    background: rgba(255, 255, 255, 0.85);
+    background: var(--glass-bg);
     -webkit-backdrop-filter: blur(26px) saturate(180%);
     backdrop-filter: blur(26px) saturate(180%);
   }
