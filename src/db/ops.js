@@ -1,9 +1,25 @@
-import { ORDERS, RENTALS, INCIDENTS } from './index.js'
+import { ORDERS, RENTALS, INCIDENTS, META } from './index.js'
 import { logAudit } from './audit.js'
 import { assertToken } from '../ui/confirm.js'
+import { categoryOf } from './categories.js'
 
-export const genBag = () =>
-  'B-' + Math.random().toString(36).slice(2, 8).toUpperCase().replace(/0/g, 'K')
+/*
+ * Número de bolsa correlativo 1–200 asignado en Recepción.
+ * El contador se guarda de forma atómica en el nodo meta ('_bag') y vuelve
+ * al 1 al reiniciarse cada temporada (resetFirebase borra todo el nodo meta).
+ * Las órdenes históricas conservan su formato previo 'B-XXXXXX'.
+ */
+export const BAG_MAX = 200
+
+export async function nextBagNumber() {
+  let num = 0
+  await META().txOne('_bag', (fresh) => {
+    const cur = Number(fresh?.next || 0)
+    num = (cur % BAG_MAX) + 1
+    return { next: num }
+  })
+  return num
+}
 
 const fail = (msg, code) => {
   const e = new Error(msg)
@@ -24,7 +40,7 @@ export async function approveOrder(orderId, { currency, doc, actor, rates }) {
   const o = await ORDERS().get(orderId)
   if (!o) throw fail('Venta no encontrada', 'NOT_FOUND')
   if (o.state !== 'pendiente' || o.bag) throw fail('La venta ya fue procesada', 'ALREADY')
-  const bag = genBag()
+  const bag = await nextBagNumber()
   const rate = currency === 'ars' ? null : Number(rates?.[currency])
   const cur = rate ? +(Number(o.total) / rate).toFixed(2) : null
   if (currency !== 'ars' && !rate) throw fail('Falta el tipo de cambio de la divisa', 'RATE_REQUIRED')
@@ -54,10 +70,16 @@ export async function approveOrder(orderId, { currency, doc, actor, rates }) {
 export async function deliverRows(rows, actor) {
   if (!rows.length) throw fail('Sin ítems para entregar', 'SIN_ITEMS')
   const orderCode = rows[0].orderCode
-  const entry = { qty: rows.length, bag: rows[0]?.bag || null }
+  const group = categoryOf(rows[0]?.category)?.group
+  if (!group) throw fail('Falta la categoría de los ítems', 'CATEGORIA_REQUERIDA')
+  const inconsistent = rows.some((r) => r.orderCode !== orderCode || categoryOf(r.category)?.group !== group)
+  if (inconsistent) throw fail('Los ítems mezclan sectores distintos', 'MIXTO')
+  const entry = { qty: rows.length, bag: rows[0]?.bag || null, group }
   await RENTALS().tx((map) => {
-    const existing = Object.values(map).some((r) => r && r.orderCode === orderCode && ACTIVE_RENTAL(r))
-    if (existing) throw fail('Esta bolsa ya fue entregada', 'YA_ENTREGADO')
+    const existing = Object.values(map).some(
+      (r) => r && r.orderCode === orderCode && ACTIVE_RENTAL(r) && categoryOf(r.category)?.group === group
+    )
+    if (existing) throw fail('Este sector de la bolsa ya fue entregado', 'YA_ENTREGADO')
     for (const r of rows) map[r.id] = r
     return map
   })

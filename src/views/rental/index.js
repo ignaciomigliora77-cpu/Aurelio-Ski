@@ -3,7 +3,7 @@ import { categoryOf } from '../../db/categories.js'
 import { getSession, logout } from '../../auth/index.js'
 import { navigate } from '../../router.js'
 import { icon } from '../../ui/icons.js'
-import { money, esc, uid, ok, err, openSheet, fmtTime, fmtDate, fmtDateTime, emptyState, haptic } from '../../ui/components.js'
+import { money, esc, uid, ok, err, openSheet, fmtTime, fmtDate, emptyState, haptic } from '../../ui/components.js'
 import { cleanText } from '../../ui/sanitize.js'
 import { deliverRows, reportReturn, createIncident } from '../../db/ops.js'
 import './rental.css'
@@ -41,12 +41,28 @@ const groupRental = (r) => categoryOf(r.category).group === profile
 
 const groupDelivered = (o) => rentals.some((x) => x.orderCode === o.code && groupRental(x))
 
+/* Una orden aparece en una estación solo si TODAS las estaciones del pedido
+   ya completaron su entrega (todos los grupos tienen rentals activos). */
+const orderComplete = (orderCode) => {
+  const o = orders.find((x) => x.code === orderCode)
+  if (!o || !o.items?.length) return false
+  const groups = new Set(o.items.map((it) => itemGroup(it)).filter(Boolean))
+  if (!groups.size) return false
+  for (const g of groups) {
+    if (!rentals.some((r) => r.orderCode === orderCode && categoryOf(r.category).group === g)) return false
+  }
+  return true
+}
+
+const bagLabel = (b) =>
+  typeof b === 'number' || /^\d+$/.test(String(b)) ? `Nº ${b}` : String(b || '—')
+
 const activeOrders = () =>
   orders
     .filter((o) => o.state === 'aprobada' && groupItems(o).length > 0 && !groupDelivered(o))
     .sort((a, b) => (b.approvedAt || b.createdAt || 0) - (a.approvedAt || a.createdAt || 0))
 
-const returnRows = () => rentals.filter((r) => r.status === 'out' && groupRental(r))
+const returnRows = () => rentals.filter((r) => r.status === 'out' && groupRental(r) && orderComplete(r.orderCode))
 
 const returnGroups = () => {
   const seen = new Map()
@@ -80,7 +96,7 @@ function renderActivos() {
         <button class="rt-card" data-order="${o.id}" type="button">
           <div class="rt-card-main">
             <div class="rt-card-name">${esc(o.clientName || 'Cliente')}</div>
-            <div class="rt-card-sub">${esc(o.code)} · ${fmtTime(o.approvedAt || o.createdAt)}${o.bag ? ` · bolsa ${esc(o.bag)}` : ''}</div>
+            <div class="rt-card-sub">Bolsa ${bagLabel(o.bag)} · aprobada ${fmtTime(o.approvedAt || o.createdAt)}</div>
           </div>
           <div class="rt-count">${qty}</div>
         </button>`
@@ -94,16 +110,15 @@ function renderActivos() {
 
 function openTicket(o) {
   const items = groupItems(o)
-  const timer = fmtDateTime(o.approvedAt || o.createdAt)
   const { close, root } = openSheet({
     title: 'Entrega · bolsa',
     body: `
       <div class="rt-ticket-head">
-        <div>
+        <div class="rt-avatar">${icon('box', 20, 2)}</div>
+        <div class="grow">
           <div class="rt-card-name">${esc(o.clientName || 'Cliente')}</div>
-          <div class="rt-card-sub">${esc(o.code)} · aprobada ${timer}</div>
+          <div class="rt-bag-label">Bolsa ${bagLabel(o.bag)}</div>
         </div>
-        <div class="rt-bag">${esc(o.bag || '—')}</div>
       </div>
       <div class="rt-items">
         ${items.map((it) => `
@@ -120,7 +135,7 @@ function openTicket(o) {
         ${groupQty(items)} elemento${groupQty(items) !== 1 ? 's' : ''} · bolsa unificada para este cliente
       </div>
     `,
-    footer: `<button class="btn btn--primary btn--lg" id="do-deliver" type="button">${icon('box', 18, 2)} Entregar bolsa</button>`,
+    footer: `<button class="btn btn--success btn--lg" id="do-deliver" type="button">${icon('box', 18, 2)} Entregar</button>`,
   })
 
   root.querySelector('#do-deliver').addEventListener('click', async () => {
@@ -157,9 +172,8 @@ function openTicket(o) {
     await playDeliverAnim(o)
     close()
     delivering = false
-    ok(`Bolsa ${o.bag || o.code} entregada · todo listo`)
+    ok(`Bolsa ${bagLabel(o.bag)} entregada · todo listo`)
     haptic([30, 50, 40])
-    state.tab = 'devolver'
     await refresh()
     paint()
   })
@@ -174,7 +188,7 @@ function playDeliverAnim(o) {
       <div class="rt-anim-inner">
         <div class="rt-anim-check">${icon('check', 34, 2.6)}</div>
         <div class="rt-anim-title">Todo entregado correctamente</div>
-        <div class="rt-anim-sub">Bolsa ${esc(o.bag || o.code || '')} · armada y lista</div>
+        <div class="rt-anim-sub">Bolsa ${bagLabel(o.bag)} · armada y lista</div>
         <div class="rt-anim-bar"><span></span></div>
       </div>
     `
@@ -192,7 +206,7 @@ function playDeliverAnim(o) {
 function renderReturns() {
   const groups = returnGroups()
   if (!groups.length) {
-    listEl.innerHTML = emptyState('box', 'Sin devoluciones pendientes', 'Las entregas activas de bolsas aparecen acá para su revisión y confirmación.')
+    listEl.innerHTML = emptyState('box', 'Sin devoluciones pendientes', 'Las entregas aparecen acá una vez que todas las estaciones completaron el armado de la bolsa y quedó lista la devolución.')
     return
   }
   listEl.innerHTML = `
@@ -204,7 +218,7 @@ function renderReturns() {
         <button class="rt-card" data-return="${g.orderCode}" type="button">
           <div class="rt-card-main">
             <div class="rt-card-name">${esc(g.clientName || 'Cliente')}</div>
-            <div class="rt-card-sub">Bolsa ${esc(g.bag || '—')} · entregada ${fmtDate(g.outAt)} ${fmtTime(g.outAt)}</div>
+            <div class="rt-card-sub">Bolsa ${bagLabel(g.bag)} · entregada ${fmtDate(g.outAt)} ${fmtTime(g.outAt)}</div>
           </div>
           <div class="rt-count">${qty}</div>
         </button>`
@@ -227,11 +241,11 @@ function openReturn(orderCode) {
     title: 'Devolución',
     body: `
       <div class="rt-ticket-head">
-        <div>
+        <div class="rt-avatar">${icon('check', 20, 2)}</div>
+        <div class="grow">
           <div class="rt-card-name">${firstName ? esc(firstName) : 'Cliente'}</div>
-          <div class="rt-card-sub">Orden ${esc(orderCode)}</div>
+          <div class="rt-bag-label">Bolsa ${bagLabel(bag)}</div>
         </div>
-        <div class="rt-bag">${bag ? esc(bag) : '—'}</div>
       </div>
       <div class="mutest" style="font-size:12px;margin:2px 0 10px">Artículos que trajo de vuelta · revisión rápida</div>
       <div class="rt-items">
@@ -333,7 +347,7 @@ function paint() {
   bodyEl.innerHTML = `
     <div class="segmented rt-seg" id="rt-seg">
       <button data-t="activos" class="${state.tab === 'activos' ? 'on' : ''}">${icon('ticket', 14, 2)} Activos (${activos})</button>
-      <button data-t="devolver" class="${state.tab === 'devolver' ? 'on' : ''}">${icon('box', 14, 2)} A devolver (${devolver})</button>
+      <button data-t="devolver" class="${state.tab === 'devolver' ? 'on' : ''} ${devolver ? 'rt-danger' : ''}">${icon('box', 14, 2)} A devolver (${devolver})</button>
     </div>
     <div id="rt-body" class="rt-body"></div>
   `

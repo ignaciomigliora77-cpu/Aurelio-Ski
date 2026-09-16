@@ -11,6 +11,7 @@ let cooldown = false
 let resumeId = null
 let root = null
 let detector = null
+let starting = false
 let video, canvas, ctx, manualInput, validarBtn
 
 const LINK_TTL = 120000
@@ -24,6 +25,36 @@ const isSupported = () => {
 }
 
 const normalize = (raw) => String(raw || '').trim().toUpperCase().replace(/\u200b/g, '')
+
+const cameraErrMessage = (e) => {
+  const name = e?.name || ''
+  if (name === 'NotAllowedError' || name === 'SecurityError') return 'Permiso de cámara denegado · tocá Activar cámara o habilitalo en el navegador'
+  if (name === 'NotFoundError' || name === 'DevicesNotFoundError') return 'No se detectó ninguna cámara en este dispositivo · usá el código manual'
+  if (name === 'NotReadableError' || name === 'TrackStartError') return 'La cámara está en uso por otra app · cerrá la otra y reintentá'
+  if (name === 'OverconstrainedError') return 'No hay una cámara compatible · usá la trasera o el código manual'
+  return 'No se pudo iniciar la cámara · usá el código manual o reintentá'
+}
+
+function overlayEl() {
+  return root?.querySelector('#sc-overlay')
+}
+
+function showOverlay() {
+  const ov = overlayEl()
+  if (ov) ov.hidden = false
+}
+
+function hideOverlay() {
+  const ov = overlayEl()
+  if (ov) ov.hidden = true
+}
+
+function setOverlay(title, sub) {
+  const ov = overlayEl()
+  if (!ov) return
+  ov.querySelector('#sc-ov-title').textContent = title
+  ov.querySelector('#sc-ov-sub').textContent = sub || ''
+}
 
 async function handleScan(raw) {
   const code = normalize(raw)
@@ -87,9 +118,12 @@ function armResume(delay = 2500) {
 
 async function startCamera() {
   if (!isSupported()) {
-    err('Cámara no disponible · usá el input manual o el botón Acceder')
+    setOverlay('Cámara no disponible', 'Este dispositivo no expone cámara · usá el código manual.')
+    showOverlay()
     return
   }
+  if (starting) return
+  starting = true
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 1280 } },
@@ -98,8 +132,14 @@ async function startCamera() {
     video.srcObject = stream
     await video.play()
     loopId = setInterval(tick, 300)
-  } catch {
-    err('Cámara no disponible · usá el input manual o el botón Acceder')
+    hideOverlay()
+    haptic(12)
+  } catch (e) {
+    stopCamera()
+    setOverlay('Cámara apagada', cameraErrMessage(e))
+    showOverlay()
+  } finally {
+    starting = false
   }
 }
 
@@ -116,6 +156,42 @@ function stopCamera() {
     video.srcObject = null
   }
 }
+
+function pauseCamera() {
+  if (loopId) clearInterval(loopId)
+  loopId = null
+}
+
+async function resumeCamera() {
+  if (!root || document.hidden) return
+  if (stream && video?.videoWidth) {
+    loopId = setInterval(tick, 300)
+  } else {
+    stopCamera()
+    await startCamera()
+  }
+}
+
+async function requestPermissionAndStart() {
+  try {
+    const cam = await navigator.permissions?.query({ name: 'camera' })
+    cam?.addEventListener?.('change', () => {
+      if (cam.state === 'granted' && root) startCamera()
+    })
+    if (cam?.state === 'granted') {
+      startCamera()
+      return
+    }
+  } catch {
+    /* query no soportado: se intenta directo el stream */
+  }
+  startCamera()
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) pauseCamera()
+  else resumeCamera()
+})
 
 async function tick() {
   if (!video || !video.videoWidth || busy || cooldown) return
@@ -144,11 +220,6 @@ async function tick() {
   }
 }
 
-function simulateScan() {
-  const desk = (localStorage.getItem('aurelio.desk') || 'demo').toUpperCase()
-  handleScan(`VENTAS::${desk}`)
-}
-
 export function scannerView() {
   const mount = async (el) => {
     root = el
@@ -156,14 +227,19 @@ export function scannerView() {
     root.innerHTML = `
       <div class="scanner-shell">
         <div class="scanner-viewport">
-          <video id="sc-video" playsinline muted></video>
+          <video id="sc-video" playsinline muted autoplay webkit-playsinline></video>
           <canvas id="sc-canvas" hidden></canvas>
           <div class="scanner-scanline"></div>
           <div class="scanner-corners"><span></span><span></span><span></span><span></span></div>
+          <div class="scanner-overlay" id="sc-overlay" hidden>
+            <div class="scanner-overlay-inner">
+              <div class="scanner-overlay-icon">${icon('camera', 26, 2)}</div>
+              <div class="scanner-overlay-title" id="sc-ov-title">Cámara apagada</div>
+              <div class="scanner-overlay-sub" id="sc-ov-sub"></div>
+              <button class="btn btn--accent" id="sc-start" type="button">${icon('camera', 18, 2)} Activar cámara</button>
+            </div>
+          </div>
         </div>
-
-        <button class="btn btn--accent" id="acceder-btn" type="button">Acceder</button>
-        <p class="mutest" style="font-size:12px;text-align:center;margin:6px 0 14px">Botón de prueba · simula el escaneo del QR de la tablet para comprobar el flujo sin cámara.</p>
 
         <div class="scan-manual">
           <div class="row" style="width:min(100%,380px);align-items:stretch">
@@ -183,10 +259,6 @@ export function scannerView() {
     ctx = canvas.getContext('2d', { willReadFrequently: true })
     manualInput = root.querySelector('#sc-manual')
     validarBtn = root.querySelector('#validar-btn')
-    root.querySelector('#acceder-btn').addEventListener('click', () => {
-      toast('Simulando escaneo de la tablet…')
-      simulateScan()
-    })
 
     const doManual = async () => {
       if (!manualInput.value.trim()) return
@@ -202,7 +274,8 @@ export function scannerView() {
       if (e.key === 'Enter') doManual()
     })
 
-    startCamera()
+    root.querySelector('#sc-start').addEventListener('click', startCamera)
+    requestPermissionAndStart()
   }
 
   const unmount = () => {

@@ -1,4 +1,5 @@
 import { CATALOG, LINKS, ORDERS, subscribeData } from '../../db/index.js'
+import { findByUsername } from '../../promoters/firebase-promoters.js'
 import { categoryOf } from '../../db/categories.js'
 import { getSession, logout } from '../../auth/index.js'
 import { navigate } from '../../router.js'
@@ -62,7 +63,7 @@ async function handleOrdered() {
       state.promoter = null
       state.items = {}
       state.client = ''
-      goLink()
+      goLink(true)
       return
     }
   }
@@ -106,12 +107,20 @@ function renderLink() {
       <div class="v-qr-card">
         <span class="v-eyebrow">Tablet de ventas · puesto ${getDesk()}</span>
         <h2>Vinculá tu sesión</h2>
-        <p class="mutest">Abrí la solapa <b>Escáner</b> de tu celular y apuntá cámara a este código (o usá el botón <b>Acceder</b> de prueba).</p>
+        <p class="mutest">Abrí la solapa <b>Escáner</b> de tu celular y apuntá cámara a este código para vincular al promotor.</p>
         <canvas id="v-qr" width="240" height="240"></canvas>
         <div class="v-desk mono">VENTAS::${getDesk()}</div>
         <div id="v-state" class="mutest">Esperando que un promotor escanee el código…</div>
-        <button class="btn btn--accent" id="v-acceder" type="button">Acceder</button>
-        <p class="mutest" style="font-size:12px;text-align:center;margin-top:6px">Botón de prueba · simula el vínculo de un promotor sin escanear.</p>
+      </div>
+      <div class="v-manual">
+        <div class="row" style="width:100%;align-items:stretch">
+          <div class="search grow">
+            ${icon('search', 18, 2)}
+            <input class="input" id="v-manual" placeholder="Ingresar código manual" autocomplete="off" spellcheck="false" autocapitalize="none" />
+          </div>
+          <button class="btn btn--primary" id="v-validar" type="button" disabled>Validar</button>
+        </div>
+        <p class="mutest" style="font-size:12px;text-align:center;margin-top:6px">Si la cámara no puede leer el código, ingresalo manualmente.</p>
       </div>
       ${state.lastOrder ? `
         <div class="v-sent">
@@ -125,7 +134,22 @@ function renderLink() {
     </div>
   `
   initQrCanvas(mainEl.querySelector('#v-qr'), `VENTAS::${getDesk()}`, 240)
-  mainEl.querySelector('#v-acceder').addEventListener('click', simulateScan)
+
+  const manualInput = mainEl.querySelector('#v-manual')
+  const validarBtn = mainEl.querySelector('#v-validar')
+  const doManual = async () => {
+    if (!manualInput.value.trim()) return
+    await manualLink(manualInput.value)
+    manualInput.select()
+  }
+  validarBtn.addEventListener('click', doManual)
+  manualInput.addEventListener('input', () => {
+    validarBtn.disabled = !manualInput.value.trim()
+  })
+  manualInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') doManual()
+  })
+
   renderSent()
 }
 
@@ -134,9 +158,13 @@ async function renderSent() {
   if (!host || state.mode !== 'link') return
   const mine = await ORDERS().filter((o) => o.desk === getDesk() && o.state === 'pendiente').toArray()
   mine.sort((a, b) => b.createdAt - a.createdAt)
-  host.innerHTML = mine.length ? `
-    <div class="v-sent-count">${icon('ticket', 15, 2)} ${mine.length} ${mine.length === 1 ? 'orden' : 'órdenes'} en Recepción</div>
-    ${mine.map((o) => `
+  if (!mine.length) {
+    host.innerHTML = ''
+    host.style.display = 'none'
+    return
+  }
+  host.style.display = ''
+  host.innerHTML = mine.map((o) => `
       <div class="pd-card squircle v-sent-card">
         <div class="spread" style="padding:12px 16px 6px">
           <span class="row-title mono">${esc(o.code)}</span>
@@ -145,13 +173,21 @@ async function renderSent() {
         <div class="mutest" style="padding:0 16px 12px;font-size:12px">
           <b>${esc(o.clientName || 'Cliente')}</b> · ${o.itemQty} ítem${o.itemQty !== 1 ? 's' : ''} · ${money(o.total)} · ${fmtDateTime(o.createdAt)}
         </div>
-      </div>`).join('')}`
-    : '<div class="v-sent-empty">Sin órdenes pendientes en Recepción</div>'
+      </div>`).join('')
 }
 
-async function simulateScan() {
+async function manualLink(raw) {
+  const code = cleanText(raw, 64).toLowerCase()
+  if (!code) return
+  if (state.link?.id) await LINKS().delete(state.link.id)
+  const promo = findByUsername(code)
+  if (!promo) {
+    err('Promotor no encontrado · verificá el código')
+    haptic([40, 60, 40])
+    return
+  }
   const at = Date.now()
-  const link = { id: uid(), desk: getDesk(), promoterId: 'promotor', at, expiresAt: at + LINK_TTL }
+  const link = { id: uid(), desk: getDesk(), promoterId: promo.username, at, expiresAt: at + LINK_TTL }
   await LINKS().put(link)
   state.mode = 'list'
   state.promoter = link.promoterId
@@ -160,7 +196,7 @@ async function simulateScan() {
   state.client = ''
   state.q = ''
   haptic([40, 40])
-  ok('Sesión vinculada · modo prueba')
+  ok(`Sesión vinculada · promotor ${link.promoterId}`)
   renderList()
 }
 
@@ -218,7 +254,7 @@ function renderList() {
           <div class="v-total amount">${money(total)}</div>
         </div>
         <div class="field grow" style="min-width:200px">
-          <label for="v-client">Cliente (titular)</label>
+          <label for="v-client">Cliente (TITULAR)</label>
           <input class="input" id="v-client" placeholder="Nombre del cliente…" value="${esc(state.client)}" autocomplete="off" />
         </div>
         <button class="btn btn--success btn--lg" id="v-order" type="button" ${count && state.client.trim() ? '' : 'disabled'}>
@@ -246,7 +282,7 @@ function renderList() {
     state.items = {}
     state.client = ''
     state.q = ''
-    goLink()
+    goLink(true)
   })
   mainEl.querySelectorAll('[data-inc]').forEach((b) => {
     b.addEventListener('click', () => stepItem(b.dataset.inc, +1))
@@ -285,12 +321,18 @@ function stepItem(id, delta) {
   if (cnt) cnt.textContent = `${count} ${count === 1 ? 'artículo' : 'artículos'}`
 }
 
-function goLink() {
+function goLink(resetAll = false) {
   state.mode = 'link'
+  state.promoter = null
+  state.link = null
+  state.items = {}
+  state.client = ''
+  state.q = ''
+  if (resetAll) state.lastOrder = null
   renderLink()
 }
 
-function onDataChange() {
+async function onDataChange() {
   if (!rootEl) return
   if (state.mode === 'link') {
     const link = resolveLink()
@@ -305,6 +347,14 @@ function onDataChange() {
       renderList()
     }
   } else {
+    const link = state.link
+    if (link) {
+      const live = await LINKS().get(link.id)
+      if (!live || Date.now() - live.at > LINK_TTL || (live.expiresAt && Date.now() > live.expiresAt)) {
+        goLink(true)
+        return
+      }
+    }
     renderSent()
   }
 }
@@ -358,7 +408,7 @@ export function ventasView() {
       state.q = ''
       renderList()
     } else {
-      goLink()
+      goLink(true)
     }
   }
 

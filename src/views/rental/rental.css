@@ -86,23 +86,38 @@
 
 .rental .rt-ticket-head {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  align-items: center;
   gap: 12px;
   margin-bottom: 14px;
 }
 
-.rental .rt-bag {
+.rental .rt-avatar {
   flex: none;
-  padding: 10px 14px;
-  font-family: var(--font-mono);
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
   color: var(--accent);
   background: var(--accent-soft);
-  border: 1.5px dashed var(--accent);
-  border-radius: 14px;
+  border-radius: 15px;
+}
+
+.rental .rt-bag-label {
+  margin-top: 2px;
+  color: var(--accent);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.rental .segmented .rt-danger {
+  color: var(--red);
+}
+
+.rental .segmented .rt-danger.on {
+  color: #fff;
+  background: var(--red);
+  box-shadow: 0 6px 18px rgba(255, 59, 48, 0.28);
 }
 
 .rental .rt-items {

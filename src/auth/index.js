@@ -1,4 +1,4 @@
-import { BOXES, ORDERS, resetFirebase } from '../db/index.js'
+import { BOXES, ORDERS, LINKS, resetFirebase } from '../db/index.js'
 import { uid } from '../ui/components.js'
 import { hashPassword, verifyPassword, verifySessionCred as verifyCred } from './crypto.js'
 import { logAudit } from '../db/audit.js'
@@ -7,6 +7,13 @@ import { listPromoters as firebaseListPromoters, findByUsername, updatePromoter 
 const KEY = 'aurelio.session'
 
 export const SESSION_TTL_MS = 8 * 3600e3
+
+/*
+ * Roles operativos con sesión permanente: no expiran por tiempo ni por
+ * inactividad para evitar reingresos constantes. El control estricto por
+ * TTL + idle queda reservado únicamente al panel de Recepción.
+ */
+export const PERMANENT_SESSION_ROLES = new Set(['promotor', 'ventas', 'botas', 'equipo', 'ropa'])
 
 const isTouchDevice = () => {
   try {
@@ -58,10 +65,15 @@ export const touch = () => {
 
 export const idleMs = () => IDLE_MS[session?.role?.id] ?? IDLE_MS.default
 
-export const isIdleExpired = () => Date.now() - lastActivity > idleMs()
+export const isIdleExpired = () => {
+  if (!session) return false
+  if (PERMANENT_SESSION_ROLES.has(session.role.id)) return false
+  return Date.now() - lastActivity > idleMs()
+}
 
 export const isSessionExpired = () => {
   if (!session) return false
+  if (PERMANENT_SESSION_ROLES.has(session.role.id)) return false
   return Date.now() - session.loginAt > SESSION_TTL_MS
 }
 
@@ -91,7 +103,8 @@ export async function restoreSession() {
       localStorage.removeItem(KEY)
       return null
     }
-    if (Date.now() - (data.loginAt || 0) > SESSION_TTL_MS) {
+    const permanent = PERMANENT_SESSION_ROLES.has(data.role.id)
+    if (!permanent && Date.now() - (data.loginAt || 0) > SESSION_TTL_MS) {
       session = null
       localStorage.removeItem(KEY)
       return null
@@ -181,6 +194,11 @@ export async function logout() {
   if (session) {
     await logAudit(session.username, 'auth.logout', 'sesión', {})
     await closeBoxFor(session)
+    try {
+      await LINKS().filter((l) => l.promoterId === session.username).delete()
+    } catch {
+      /* noop: los vínculos se limpian localmente */
+    }
     session = null
   }
   localStorage.removeItem(KEY)

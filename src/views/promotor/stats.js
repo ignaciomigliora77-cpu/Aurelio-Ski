@@ -1,6 +1,6 @@
 import { ORDERS, subscribeData } from '../../db/index.js'
 import { getSession } from '../../auth/index.js'
-import { money } from '../../ui/components.js'
+import { money, fmtDate } from '../../ui/components.js'
 
 const RANGES = {
   hoy: { label: 'Hoy', from: () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime() } },
@@ -28,6 +28,44 @@ function metricCard(label, value, tone = '', sub = '') {
     </div>`
 }
 
+async function weekChart() {
+  const s = getSession()
+  const today = new Date()
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()
+  const days = []
+  for (let i = 6; i >= 0; i--) {
+    const t = startOfToday - i * 864e5
+    days.push({ t, label: fmtDate(t), total: 0 })
+  }
+  const all = await ORDERS().toArray()
+  for (const o of all) {
+    if (o.promoterId !== s.username || o.state !== 'aprobada' || !o.createdAt) continue
+    for (const d of days) {
+      if (o.createdAt >= d.t && o.createdAt < d.t + 864e5) {
+        d.total += o.total
+        break
+      }
+    }
+  }
+  return days
+}
+
+function chartHTML(days) {
+  const max = Math.max(1, ...days.map((d) => d.total))
+  return `
+    <div class="stats-chart card">
+      <div class="eyebrow">Últimos 7 días</div>
+      <p class="mutest" style="font-size:12px;margin-top:2px">Tus ventas aprobadas día por día</p>
+      <div class="stats-bars">
+        ${days.map((d) => `
+          <div class="stats-bar" title="${d.label} · ${money(d.total)}">
+            <div class="stats-bar-track"><div class="stats-bar-fill" style="height:${d.total ? Math.round((d.total / max) * 100) : 0}%"></div></div>
+            <span class="stats-bar-label">${d.label}</span>
+          </div>`).join('')}
+      </div>
+    </div>`
+}
+
 export function statsView() {
   let dataOff = null
   const mount = async (root) => {
@@ -52,12 +90,14 @@ export function statsView() {
     async function paint() {
       const orders = await loadStats(state.range)
       const revenue = orders.reduce((a, o) => a + o.total, 0)
+      const days = await weekChart()
 
       root.querySelector('#stats-metrics').innerHTML = `
         <div class="metric-grid">
           ${metricCard('Recaudación total', money(revenue), 'accent', 'suma de tus ventas aprobadas')}
           ${metricCard('Ventas aprobadas', orders.length, '', 'registradas por Recepción')}
         </div>
+        ${chartHTML(days)}
       `
     }
 

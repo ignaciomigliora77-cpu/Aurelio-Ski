@@ -72,10 +72,14 @@ const deletable = (o) => o.state === 'pendiente' || (o.state === 'aprobada' && !
 
 const openIncidents = (orderCode) => incidents.filter((i) => i.orderCode === orderCode && i.status !== 'cerrado')
 
+/* Solo aparece una devolución cuando el cliente terminó TODA su entrega:
+   al menos un rental reportado en 'back' y ningún 'out' pendiente de la orden. */
 const backGroups = () => {
   const seen = new Map()
   for (const r of rentals.filter((x) => x.status === 'back')) {
-    if (!seen.has(r.orderCode)) seen.set(r.orderCode, r)
+    if (seen.has(r.orderCode)) continue
+    const stillOut = rentals.some((x) => x.orderCode === r.orderCode && x.status === 'out')
+    if (!stillOut) seen.set(r.orderCode, r)
   }
   return [...seen.values()].sort((a, b) => (b.returnAt || 0) - (a.returnAt || 0))
 }
