@@ -192,9 +192,9 @@ export async function anularSale(orderId, { note, token, actor }) {
   await ORDERS().txOne(orderId, (fresh) => {
     if (!fresh) throw fail('Venta no encontrada', 'NOT_FOUND')
     if (fresh.state !== 'aprobada') throw fail('Solo se anulan ventas aprobadas ya congeladas', 'NO_ANULABLE')
-    return { ...fresh, anulacionNote: { at: Date.now(), by: actor, note: note || '' } }
+    return { ...fresh, state: 'anulada', anulacionNote: { at: Date.now(), by: actor, note: note || '' } }
   })
-  await logAudit(actor, 'venta.anular', o.code, { note: note || '', total: o.total })
+  await logAudit(actor, 'venta.anular', o.code, { note: note || '', total: o.total, estado: 'anulada' })
   return o.code
 }
 

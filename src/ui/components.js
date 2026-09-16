@@ -112,32 +112,32 @@ export const err = (msg) => {
   toastIcon('xmark', 'red', msg)
 }
 
-/* ---------- Sheet (bottom) ---------- */
+/* ---------- Sheet (inferior) / Popover (centrado) ---------- */
 
-export function openSheet({ title, body, footer, onClose }) {
+function openLayer(kind, { title, body, footer, onClose }) {
   const overlay = document.createElement('div')
   overlay.className = 'overlay'
-  const sheet = document.createElement('div')
-  sheet.className = 'sheet'
+  const layer = document.createElement('div')
+  layer.className = kind
 
   const close = () => {
     overlay.remove()
-    sheet.remove()
+    layer.remove()
     onClose?.()
   }
   overlay.addEventListener('click', close)
 
-  sheet.innerHTML = `
-    <div class="sheet-grab"></div>
-    <div class="sheet-head">
+  layer.innerHTML = `
+    ${kind === 'sheet' ? '<div class="sheet-grab"></div>' : ''}
+    <div class="${kind}-head">
       <h3>${esc(title)}</h3>
       <button class="icon-btn" data-close aria-label="Cerrar">${icon('xmark', 16, 2)}</button>
     </div>
-    <div class="sheet-body">${body || ''}</div>
-    ${footer ? `<div class="sheet-foot">${footer}</div>` : ''}
+    <div class="${kind}-body">${body || ''}</div>
+    ${footer ? `<div class="${kind}-foot">${footer}</div>` : ''}
   `
 
-  sheet.querySelector('[data-close]').addEventListener('click', close)
+  layer.querySelector('[data-close]').addEventListener('click', close)
 
   const onEscape = (e) => {
     if (e.key === 'Escape') close()
@@ -146,8 +146,29 @@ export function openSheet({ title, body, footer, onClose }) {
 
   const host = frame()
   host.appendChild(overlay)
-  host.appendChild(sheet)
-  return { close, root: sheet, overlay }
+  host.appendChild(layer)
+  return { close, root: layer, overlay }
+}
+
+export function openSheet(opts) {
+  return openLayer('sheet', opts)
+}
+
+export function openPopover(opts) {
+  return openLayer('popover', opts)
+}
+
+/* ---------- Animación de salida ---------- */
+
+export function animateOut(el, { scale = 0.95, duration = 260 } = {}, done) {
+  if (!el || typeof el.isConnected !== 'boolean' || !el.isConnected) {
+    done?.()
+    return
+  }
+  el.style.transition = `opacity ${duration}ms var(--ease-app), transform ${duration}ms var(--ease-app)`
+  el.style.opacity = '0'
+  el.style.transform = `scale(${scale})`
+  window.setTimeout(done || (() => {}), duration + 40)
 }
 
 /* ---------- Empty state ---------- */

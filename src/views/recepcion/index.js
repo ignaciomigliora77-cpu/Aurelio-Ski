@@ -4,7 +4,9 @@ import { getSession, logout, listPromoters, resetAll } from '../../auth/index.js
 import { addPromoter, updatePromoter, removePromoter, subscribePromoters } from '../../promoters/firebase-promoters.js'
 import { navigate } from '../../router.js'
 import { icon } from '../../ui/icons.js'
-import { money, esc, fmtTime, fmtDate, fmtDateTime, ok, haptic, err, uid, openSheet } from '../../ui/components.js'
+import { mountDock } from '../../components/Dock.js'
+import { openDetail } from '../../components/ModalDetail.js'
+import { money, esc, fmtTime, fmtDate, fmtDateTime, ok, haptic, err, uid, openSheet, openPopover, animateOut, titleCase } from '../../ui/components.js'
 import { cleanText, slugUser, passValid, cleanDoc, cleanMoney, cleanInt } from '../../ui/sanitize.js'
 import { logAudit, verifyAudit } from '../../db/audit.js'
 import { approveOrder, confirmReturn, closeIncident, deleteSale, anularSale, runCritical } from '../../db/ops.js'
@@ -14,11 +16,11 @@ import './recepcion.css'
 const SECTIONS = [
   { id: 'resumen', label: 'Resumen', icon: 'house' },
   { id: 'aprobacion', label: 'Aprobación', icon: 'check' },
-  { id: 'ventas', label: 'Ventas', icon: 'list' },
   { id: 'inventario', label: 'Inventario', icon: 'box' },
+  { id: 'ventas', label: 'Ventas', icon: 'list' },
   { id: 'economia', label: 'Economía', icon: 'cards' },
-  { id: 'auditoria', label: 'Auditoría', icon: 'clock' },
   { id: 'reportes', label: 'Reportes', icon: 'chart' },
+  { id: 'auditoria', label: 'Auditoría', icon: 'clock' },
 ]
 
 let rootEl = null
@@ -48,7 +50,11 @@ const startOfDay = () => {
 
 const isApproved = (o) => o.state === 'aprobada'
 
-const pending = () => orders.filter((o) => !isApproved(o))
+/* Borrado lógico sin excepción: una venta anulada desaparece de las listas
+   activas pero queda asentada en el historial y la auditoría. */
+const isAnulada = (o) => o.state === 'anulada' || !!o.anulacionNote
+
+const pending = () => orders.filter((o) => !isApproved(o) && !isAnulada(o))
 
 const fxRate = (k) => (k === 'usd' ? state.rates.usd : state.rates.brl)
 
@@ -486,7 +492,7 @@ function renderResumen() {
 function renderVentas() {
   const periodFilter = orders.filter((o) => state.period === 'todo' || o.createdAt >= startOfDay())
   const q = state.q.toLowerCase()
-  const list = periodFilter.filter((o) => !q || o.code.toLowerCase().includes(q) || o.promoterId.toLowerCase().includes(q))
+  const list = periodFilter.filter((o) => !isAnulada(o) && (!q || o.code.toLowerCase().includes(q) || o.promoterId.toLowerCase().includes(q)))
   const revenue = list.filter(isApproved).reduce((a, o) => a + o.total, 0)
 
   panelEl.innerHTML = `
@@ -509,27 +515,14 @@ function renderVentas() {
             <span class="${isApproved(o) ? 'badge badge--green' : 'badge badge--orange'}">${isApproved(o)
               ? `${o.currency ? o.currency.toUpperCase() : 'ARS'} · Aprobada${o.bag ? ` · ${esc(o.bag)}` : ''}`
               : 'Pendiente'}</span>
-            ${o.anulacionNote ? `<span class="badge badge--accent" title="Anulada el ${fmtDateTime(o.anulacionNote.at)} por ${o.anulacionNote.by}">Anulada</span>` : ''}
           </div>
           <div class="sales-body">
             <div class="sales-col"><span class="metric-label">Ítems</span><span class="sales-v">${o.itemQty}</span></div>
             <div class="sales-col"><span class="metric-label">Cobro</span><span class="sales-v">${amountOf(o)}</span></div>
           </div>
-          <details class="sales-detail">
-            <summary>${icon('list', 14, 2)} Ver detalle · ${o.items.length} línea${o.items.length !== 1 ? 's' : ''}</summary>
-            <div class="pd-items">
-              ${o.items.map((it) => `
-                <div class="row-item" style="border-radius:0;border-left:none;border-right:none">
-                  <div class="row-thumb">${icon('tag', 18, 1.8)}</div>
-                  <div class="row-main">
-                    <div class="row-title">${esc(it.name)}</div>
-                    <div class="row-sub">${money(it.price)} × ${it.qty}</div>
-                  </div>
-                  <span class="amount" style="font-weight:600">${money(it.line)}</span>
-                </div>`).join('')}
-            </div>
-          </details>
           <div class="sales-foot">
+            <button class="btn btn--sm btn--accent" data-det="${o.id}" type="button">${icon('eye', 14, 1.8)} Ver detalle</button>
+            <div class="grow"></div>
             ${deletable(o)
               ? `<button class="btn btn--sm btn--danger" data-dell="${o.id}" type="button">${icon('trash', 14, 2)} Eliminar</button>`
               : isApproved(o)
@@ -568,6 +561,26 @@ function renderVentas() {
       }
     })
   })
+  panelEl.querySelectorAll('[data-det]').forEach((b) => {
+    b.addEventListener('click', () => {
+      const o = orders.find((x) => x.id === b.dataset.det)
+      if (!o) return
+      openDetail({
+        title: `Ver detalle · ${o.code}${o.clientName ? ` · ${titleCase(o.clientName)}` : ''}`,
+        rows: o.items.map((it) => ({
+          icon: 'tag',
+          name: it.name,
+          sub: `${money(it.price)} × ${it.qty}`,
+          value: money(it.line),
+        })),
+        footer: `
+          <div class="row" style="justify-content:space-between;width:100%">
+            <span class="mutest" style="font-size:12px">${(o.currency || 'ARS').toUpperCase()} · ${fmtDateTime(o.createdAt)} · ${esc(o.promoterId)}</span>
+            <span class="num-tabular" style="font-weight:700">${amountOf(o)}</span>
+          </div>`,
+      })
+    })
+  })
   panelEl.querySelectorAll('[data-anul]').forEach((b) => {
     b.addEventListener('click', async () => {
       const o = orders.find((x) => x.id === b.dataset.anul)
@@ -589,14 +602,16 @@ function renderVentas() {
         const tok = await confirmCritical({ action: 'venta.anular', target: o.code, word: 'ANULAR', note: `Venta ${o.code} · ${money(o.total)}` })
         if (!tok) return
         const s = getSession()
+        const card = b.closest('.sales-card')
+        animateOut(card, { scale: 0.95, duration: 260 })
         try {
           await anularSale(o.id, { note, token: tok, actor: s.username })
-ok(`Nota de anulación registrada · ${o.code}`)
-        haptic([20, 40, 20])
-          await refresh(true)
+          ok(`Nota de anulación registrada · ${o.code}`)
+          haptic([20, 40, 20])
         } catch (e) {
           err(e?.message || 'No se pudo registrar la anulación')
         }
+        renderVentas()
       })
     })
   })
@@ -751,18 +766,19 @@ function promoterStats(username) {
   return { oo, pases: oo.length, rev, pct, comision: (rev * pct) / 100 }
 }
 
-async function saveRates() {
-  const usd = parseFloat(panelEl.querySelector('#fx-usd')?.value)
-  const brl = parseFloat(panelEl.querySelector('#fx-brl')?.value)
+async function saveRates(root = panelEl) {
+  const usd = parseFloat(root.querySelector('#fx-usd')?.value)
+  const brl = parseFloat(root.querySelector('#fx-brl')?.value)
   if (isNaN(usd) || isNaN(brl) || usd <= 0 || brl <= 0) {
     err('Ingresá valores válidos')
-    return
+    return false
   }
   state.rates = { usd, brl }
   await setMeta('rates', state.rates)
   const s = getSession()
   await logAudit(s.username, 'rates.update', 'usa/brl', { usd, brl })
   ok('Tipos de cambio actualizados para toda la red')
+  return true
 }
 
 function openPromoterForm() {
@@ -913,7 +929,10 @@ function renderEconomia() {
 
   panelEl.innerHTML = `
     <div class="recep-dash pop-in">
-      <div class="section-title">${icon('cards', 18, 2)} Economía · Panel administrativo</div>
+      <div class="section-title">${icon('cards', 18, 2)} Economía · Panel administrativo
+        <div class="grow"></div>
+        <button class="btn btn--sm btn--ghost" id="fx-btn" type="button">${icon('cards', 14, 1.8)} Divisas</button>
+      </div>
 
       <div class="metric-grid">
         <div class="metric metric--accent"><span class="metric-label">Recaudación acumulada</span><span class="metric-value">${money(rec)}</span></div>
@@ -922,28 +941,47 @@ function renderEconomia() {
         <div class="metric"><span class="metric-label">Promotores</span><span class="metric-value">${promoters.length}</span></div>
       </div>
 
-      <div class="card">
+      <div class="card fx-card">
         <div class="page-head" style="padding:14px 18px">
           <div class="grow"><div class="eyebrow">Ingresos de hoy</div></div>
           <span class="badge badge--accent">${hoy.length} venta${hoy.length !== 1 ? 's' : ''}</span>
         </div>
         <div class="metric-grid" style="padding:0 18px 14px">
-          <div class="metric metric--accent"><span class="metric-label">Total contable (ARS)</span><span class="metric-value">${money(recHoy)}</span></div>
           <div class="metric"><span class="metric-label">USD cobrado</span><span class="metric-value" style="font-size:22px">${curText(usdTot, 'US$')}</span><span class="metric-hint">${hint(usdTot)}</span></div>
           <div class="metric"><span class="metric-label">BRL cobrado</span><span class="metric-value" style="font-size:22px">${curText(brlTot, 'R$')}</span><span class="metric-hint">${hint(brlTot)}</span></div>
-          <div class="metric"><span class="metric-label">ARS cobrado</span><span class="metric-value">${money(arsTot.ars)}</span><span class="metric-hint">${arsTot.n} venta${arsTot.n !== 1 ? 's' : ''}</span></div>
+          <div class="metric metric--accent"><span class="metric-label">ARS cobrado</span><span class="metric-value">${money(arsTot.ars)}</span><span class="metric-hint">${arsTot.n} venta${arsTot.n !== 1 ? 's' : ''}</span></div>
         </div>
-        <div class="stack" style="padding:0 18px 18px">
-          ${hoy.length ? hoy.map((o) => `
-            <div class="row-item" style="border-radius:0;border-left:none;border-right:none">
-              <div class="row-thumb">${icon('ticket', 18, 1.8)}</div>
-              <div class="row-main">
-                <div class="row-title mono">${esc(o.code)}${o.clientName ? ` · ${esc(o.clientName)}` : ''}${o.promoterId ? ` · <span class="mutest">${esc(o.promoterId)}</span>` : ''}</div>
-                <div class="row-sub">${(o.currency || 'ars').toUpperCase()} · ${o.itemQty} ítem${o.itemQty !== 1 ? 's' : ''}${o.fx?.rate ? ` · tasa del día ${money(o.fx.rate)}` : ''} · ${fmtTime(o.approvedAt || o.createdAt)}</div>
-              </div>
-              <span class="amount" style="font-weight:600">${amountOf(o)}</span>
-            </div>`).join('')
-            : `<p class="muted" style="padding:4px 4px 8px">Sin ventas cobradas hoy.</p>`}
+        <div class="fx-wrap">
+          <table class="fx-sheet">
+            <thead>
+              <tr>
+                <th>Hora</th>
+                <th>Código</th>
+                <th>Promotor</th>
+                <th>Ítems</th>
+                <th>Divisa</th>
+                <th style="text-align:right">Total (ARS)</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${hoy.length ? hoy.map((o) => `
+                <tr title="${o.code}">
+                  <td class="mutest num-tabular">${fmtTime(o.approvedAt || o.createdAt)}</td>
+                  <td class="mono">${esc(o.code)}${o.clientName ? ` · <b>${esc(o.clientName)}</b>` : ''}</td>
+                  <td class="mutest">${esc(o.promoterId)}${o.fx?.rate ? ` · tasa ${money(o.fx.rate)}` : ''}</td>
+                  <td class="num-tabular">${o.itemQty}</td>
+                  <td>${(o.currency || 'ARS').toUpperCase()}</td>
+                  <td class="num-tabular amount" style="text-align:right">${amountOf(o)}</td>
+                </tr>`).join('')
+                : `<tr><td colspan="6" class="mutest" style="text-align:center;padding:22px">Sin ventas cobradas hoy.</td></tr>`}
+            </tbody>
+            <tfoot>
+              <tr class="fx-total">
+                <td colspan="5">Total contable (ARS)</td>
+                <td class="num-tabular" style="text-align:right;font-weight:700">${money(recHoy)}</td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       </div>
 
@@ -966,22 +1004,6 @@ function renderEconomia() {
             : `<p class="muted">Sin promotores configurados.</p>`}
         </div>
       </div>
-
-      <div class="card card--padded">
-        <div class="eyebrow">Tipos de cambio</div>
-        <p class="mutest" style="font-size:12px;margin-top:4px">Valores de moneda extranjera usados en el cobro de toda la red.</p>
-        <div class="row" style="flex-wrap:wrap;margin-top:14px;gap:12px">
-          <div class="field" style="min-width:180px;flex:1">
-            <label for="fx-usd">Dólar (1 USD = ARS)</label>
-            <input class="input" id="fx-usd" type="number" step="0.01" min="0" value="${state.rates.usd}" />
-          </div>
-          <div class="field" style="min-width:180px;flex:1">
-            <label for="fx-brl">Real (1 BRL = ARS)</label>
-            <input class="input" id="fx-brl" type="number" step="0.01" min="0" value="${state.rates.brl}" />
-          </div>
-          <button class="btn btn--primary" id="fx-save" type="button">Guardar cambios</button>
-        </div>
-      </div>
     </div>
   `
 
@@ -989,7 +1011,29 @@ function renderEconomia() {
   panelEl.querySelectorAll('[data-pr]').forEach((b) => {
     b.addEventListener('click', () => openPromoterEdit(b.dataset.pr))
   })
-  panelEl.querySelector('#fx-save').addEventListener('click', saveRates)
+  panelEl.querySelector('#fx-btn').addEventListener('click', openRates)
+}
+
+function openRates() {
+  const body = `
+    <p class="mutest" style="font-size:12px;line-height:1.5;margin-bottom:12px">Valores de moneda extranjera usados en el cobro de toda la red.</p>
+    <div class="stack" style="gap:14px">
+      <div class="field">
+        <label for="fx-usd">Dólar (1 USD = ARS)</label>
+        <input class="input" id="fx-usd" type="number" step="0.01" min="0" value="${state.rates.usd}" />
+      </div>
+      <div class="field">
+        <label for="fx-brl">Real (1 BRL = ARS)</label>
+        <input class="input" id="fx-brl" type="number" step="0.01" min="0" value="${state.rates.brl}" />
+      </div>
+    </div>`
+  const footer = `<button class="btn btn--primary btn--lg" id="fx-go" type="button">Guardar cambios</button>`
+  const layer = window.matchMedia('(max-width: 640px)').matches
+    ? openSheet({ title: 'Tipos de cambio', body, footer })
+    : openPopover({ title: 'Tipos de cambio', body, footer })
+  layer.root.querySelector('#fx-go').addEventListener('click', async () => {
+    if (await saveRates(layer.root)) layer.close()
+  })
 }
 
 /* ---------------- Reportes ---------------- */
@@ -1005,15 +1049,43 @@ function byPromoter() {
   return [...map.entries()].sort((a, b) => b[1].total - a[1].total)
 }
 
-function byDay() {
-  const days = []
-  for (let i = 6; i >= 0; i--) {
-    const t = startOfDay() - i * 864e5
-    const total = orders.filter((o) => isApproved(o) && o.createdAt >= t && o.createdAt < t + 864e5).reduce((a, o) => a + o.total, 0)
-    days.push({ t, total })
+function barsFor(period) {
+  const s0 = startOfDay()
+  if (period === 'hoy') {
+    const bars = []
+    for (let i = 13; i >= 0; i--) {
+      const to = Date.now() - i * 3600e3
+      const from = to - 3600e3
+      const total = orders.filter((o) => isApproved(o) && (o.approvedAt || o.createdAt) >= from && (o.approvedAt || o.createdAt) < to).reduce((a, o) => a + o.total, 0)
+      bars.push({ label: fmtTime(from), total })
+    }
+    return bars
   }
-  const max = Math.max(1, ...days.map((d) => d.total))
-  return { days, max }
+  if (period === 'mes') {
+    const bars = []
+    for (let i = 29; i >= 0; i--) {
+      const t = s0 - i * 864e5
+      const total = orders.filter((o) => isApproved(o) && o.createdAt >= t && o.createdAt < t + 864e5).reduce((a, o) => a + o.total, 0)
+      bars.push({ label: fmtDate(t).split('/').slice(0, 2).join('/'), total })
+    }
+    return bars
+  }
+  if (period === 'temp') {
+    const map = {}
+    for (const o of orders.filter(isApproved)) {
+      const d = new Date(o.createdAt)
+      const k = `${d.getMonth() + 1}/${String(d.getFullYear()).slice(2)}`
+      map[k] = (map[k] || 0) + o.total
+    }
+    return Object.entries(map).map(([label, total]) => ({ label, total }))
+  }
+  const bars = []
+  for (let i = 6; i >= 0; i--) {
+    const t = s0 - i * 864e5
+    const total = orders.filter((o) => isApproved(o) && o.createdAt >= t && o.createdAt < t + 864e5).reduce((a, o) => a + o.total, 0)
+    bars.push({ label: fmtDate(t).split('/').slice(0, 2).join('/'), total })
+  }
+  return bars
 }
 
 function topProducts() {
@@ -1026,14 +1098,34 @@ function topProducts() {
 
 function renderReportes() {
   const promoters = byPromoter()
-  const { days, max } = byDay()
+  const bars = barsFor(state.rp || '7d')
+  const max = Math.max(1, ...bars.map((d) => d.total))
   const top = topProducts()
+  const topMax = Math.max(1, ...top.map(([, q]) => q))
   const total = orders.filter(isApproved).reduce((a, o) => a + o.total, 0)
   const approved = orders.filter(isApproved).length
+  const pills = [
+    ['hoy', 'Día'],
+    ['7d', '7 días'],
+    ['mes', 'Mes'],
+    ['temp', 'Temporada'],
+  ]
+  const spans = {
+    hoy: 'últimas 14 horas',
+    '7d': 'últimos 7 días',
+    mes: 'últimos 30 días',
+    temp: 'toda la temporada',
+  }
+  const rp = state.rp || '7d'
 
   panelEl.innerHTML = `
     <div class="recep-dash pop-in">
-      <div class="section-title">${icon('chart', 18, 2)} Reportes financieros</div>
+      <div class="section-title">${icon('chart', 18, 2)} Reportes financieros
+        <div class="grow"></div>
+        <div class="segmented" style="flex-wrap:wrap">
+          ${pills.map(([k, l]) => `<button data-rp="${k}" class="${rp === k ? 'on' : ''}">${l}</button>`).join('')}
+        </div>
+      </div>
 
       <div class="metric-grid">
         <div class="metric metric--accent"><span class="metric-label">Recaudación acumulada</span><span class="metric-value">${money(total)}</span></div>
@@ -1041,15 +1133,16 @@ function renderReportes() {
         <div class="metric"><span class="metric-label">Por aprobar</span><span class="metric-value">${pending().length}</span></div>
       </div>
 
-      <div class="card card--padded">
-        <div class="eyebrow">Recaudación · últimos 7 días</div>
+      <div class="card card--padded report-bars">
+        <div class="eyebrow">Recaudación · ${spans[rp]}</div>
         <div class="stack" style="margin-top:14px">
-          ${days.map((d) => `
-            <div class="bar-row">
-              <span style="min-width:74px;font-size:13px;color:var(--text-2)">${fmtDate(d.t).split('/')[0]}/${fmtDate(d.t).split('/')[1]}</span>
+          ${bars.length ? bars.map((d) => `
+            <div class="bar-row" title="${money(d.total)}">
+              <span style="min-width:62px;font-size:12px;color:var(--text-2);white-space:nowrap">${d.label}</span>
               <div class="bar-track"><div class="bar" style="width:${Math.round((d.total / max) * 100)}%"></div></div>
-              <span class="amount" style="min-width:86px;text-align:right;font-size:13px">${money(d.total)}</span>
-            </div>`).join('')}
+              <span class="amount num-tabular" style="min-width:84px;text-align:right;font-size:12px">${money(d.total)}</span>
+            </div>`).join('')
+            : '<p class="muted">Sin datos para el rango.</p>'}
         </div>
       </div>
 
@@ -1060,7 +1153,7 @@ function renderReportes() {
             <div class="row">
               <span class="mono" style="font-weight:600;min-width:64px">${token}</span>
               <div class="bar-track"><div class="bar" style="width:${Math.min(100, Math.round((d.total / Math.max(1, promoters[0][1].total)) * 100))}%"></div></div>
-              <span class="amount" style="min-width:96px;text-align:right">${money(d.total)}</span>
+              <span class="amount num-tabular" style="min-width:96px;text-align:right">${money(d.total)}</span>
               <span class="mutest" style="min-width:40px;text-align:right">${d.count}</span>
             </div>`).join('')
             : `<p class="muted">Sin ventas registradas.</p>`}
@@ -1070,16 +1163,27 @@ function renderReportes() {
       <div class="card card--padded">
         <div class="eyebrow">Top productos</div>
         <div class="stack" style="margin-top:12px">
-          ${top.length ? top.map(([name, qty]) => `
-            <div class="row">
-              <span class="badge">${qty} u.</span>
-              <span class="grow muted">${esc(name)}</span>
+          ${top.length ? top.map(([name, qty], i) => `
+            <div class="tp-row">
+              <div class="row">
+                <span class="rank-badge ${i === 0 ? 'rank-badge--1' : i === 1 ? 'rank-badge--2' : i === 2 ? 'rank-badge--3' : ''}">${i + 1}º</span>
+                <span class="grow">${esc(name)}</span>
+                <span class="amount num-tabular">${qty} u.</span>
+              </div>
+              <div class="tp-bar"><i style="width:${Math.round((qty / topMax) * 100)}%"></i></div>
             </div>`).join('')
             : '<p class="muted">Sin movimientos.</p>'}
         </div>
       </div>
     </div>
   `
+
+  panelEl.querySelectorAll('[data-rp]').forEach((b) => {
+    b.addEventListener('click', () => {
+      state.rp = b.dataset.rp
+      renderReportes()
+    })
+  })
 }
 
 /* ---------------- Auditoría ---------------- */
@@ -1195,9 +1299,29 @@ function renderSidebar() {
   })
 }
 
+let dockSig = ''
+function renderRecepDock() {
+  const host = rootEl?.querySelector('#dock-recep')
+  if (!host) return
+  const sig = `${section}|${pending().length}`
+  if (sig === dockSig) return
+  dockSig = sig
+  mountDock(host, {
+    items: SECTIONS,
+    active: section,
+    onSelect: (id) => {
+      section = id
+      haptic(8)
+      paint()
+    },
+    count: (id) => (id === 'aprobacion' ? pending().length : 0),
+  })
+}
+
 const paint = async () => {
   await load()
   renderSidebar()
+  renderRecepDock()
   const meta = SECTIONS.find((sx) => sx.id === section)
   rootEl.querySelector('#panel-title').textContent = meta.label
   renderers[section]()
@@ -1267,6 +1391,10 @@ export function recepcionView() {
           </div>
           <div class="body-pad" id="panel"></div>
         </main>
+
+        <div class="dock-wrap recep-dock">
+          <nav class="dock" id="dock-recep" aria-label="Secciones"></nav>
+        </div>
       </div>
     `
 

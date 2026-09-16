@@ -11,12 +11,145 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Dock móvil (visible solo en teléfono) */
+.recep-dock {
+  display: none;
+}
+
+.recep-dock .dock-item span {
+  font-size: 10px;
+}
+
+/* ---------- Planilla de Economía (estilo hoja de cálculo) ---------- */
+.fx-wrap {
+  max-height: 56vh;
+  overflow: auto;
+  padding: 0 18px 18px;
+  border-radius: 0 0 var(--r-squircle-sm) 0;
+}
+
+.fx-sheet {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.fx-sheet thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur);
+  border-bottom: 1px solid var(--grid-line);
+  padding: 10px 12px;
+  white-space: nowrap;
+}
+
+.fx-sheet td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--grid-line);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.fx-sheet tbody tr {
+  transition: background 0.12s ease;
+}
+
+.fx-sheet tbody tr:hover {
+  background: var(--fill);
+}
+
+.fx-sheet tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.fx-sheet tfoot td {
+  border-top: 1px solid var(--grid-line);
+  padding: 12px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.fx-sheet .fx-total td:first-child {
+  text-align: right;
+}
+
+/* ---------- Reportes ---------- */
+.rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 22px;
+  border-radius: 999px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--fill);
+}
+
+.rank-badge--1 {
+  background: linear-gradient(135deg, #f6d365, #fda085);
+  color: #5a3d00;
+}
+
+.rank-badge--2 {
+  background: linear-gradient(135deg, #e0e0e6, #b8bcc4);
+  color: #33363c;
+}
+
+.rank-badge--3 {
+  background: linear-gradient(135deg, #e8a87c, #c77b4f);
+  color: #3e250f;
+}
+
+.report-bars .bar {
+  background: linear-gradient(90deg, var(--accent), var(--purple));
+  min-width: 6px;
+}
+
+.report-bars .bar-track {
+  height: 12px;
+  background: var(--fill);
+  border: 1px solid var(--separator-soft);
+}
+
+.tp-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tp-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--fill);
+  overflow: hidden;
+}
+
+.tp-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--purple));
 }
 
 .card--unified {
   border-radius: 18px;
   overflow: hidden;
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-1);
 }
 
 .card--unified .ap-tabs {
@@ -29,7 +162,7 @@
 
 .pd-card.squircle {
   margin-bottom: 14px;
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-1);
 }
 
 .pd-detail {
@@ -101,31 +234,6 @@
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--text);
-}
-
-.sales-detail {
-  margin: 0 12px;
-}
-
-.sales-detail > summary {
-  cursor: pointer;
-  user-select: none;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 6px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--accent);
-  list-style: none;
-}
-
-.sales-detail > summary::-webkit-details-marker {
-  display: none;
-}
-
-.sales-detail .pd-items {
-  margin-bottom: 6px;
 }
 
 .sales-foot {
@@ -395,28 +503,10 @@
 /* Breakpoint de teléfono */
 @container (max-width: 640px) {
   .sidebar {
-    flex-wrap: wrap;
-    gap: 6px;
-    padding: 8px 10px;
+    display: none;
   }
-  .sidebar-link {
-    padding: 8px 10px;
-    font-size: 14px;
-  }
-  .sidebar-footer {
-    width: 100%;
-    margin: 0;
-    padding: 6px 0 2px;
-    flex-wrap: wrap;
-    border-top: 1px solid var(--separator-soft);
-  }
-  .sidebar-footer .btn {
-    flex: 1 1 auto;
-    padding: 0 8px;
-    font-size: 13px;
-  }
-  .sales-head {
-    flex-wrap: wrap;
+  .recep-dock {
+    display: flex;
   }
   .segmented button {
     padding: 0 10px;
@@ -432,7 +522,7 @@
     font-size: 19px;
   }
   .body-pad {
-    padding: 0 14px 28px;
+    padding: 0 14px calc(28px + 84px);
   }
   .aud-table th,
   .aud-table td {
@@ -442,28 +532,10 @@
 
 @media (max-width: 640px) {
   .sidebar {
-    flex-wrap: wrap;
-    gap: 6px;
-    padding: 8px 10px;
+    display: none;
   }
-  .sidebar-link {
-    padding: 8px 10px;
-    font-size: 14px;
-  }
-  .sidebar-footer {
-    width: 100%;
-    margin: 0;
-    padding: 6px 0 2px;
-    flex-wrap: wrap;
-    border-top: 1px solid var(--separator-soft);
-  }
-  .sidebar-footer .btn {
-    flex: 1 1 auto;
-    padding: 0 8px;
-    font-size: 13px;
-  }
-  .sales-head {
-    flex-wrap: wrap;
+  .recep-dock {
+    display: flex;
   }
   .segmented button {
     padding: 0 10px;
@@ -479,7 +551,7 @@
     font-size: 19px;
   }
   .body-pad {
-    padding: 0 14px 28px;
+    padding: 0 14px calc(28px + 84px);
   }
   .aud-table th,
   .aud-table td {

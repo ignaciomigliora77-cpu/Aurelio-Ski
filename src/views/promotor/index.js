@@ -1,6 +1,7 @@
 import { getSession, logout } from '../../auth/index.js'
 import { navigate } from '../../router.js'
 import { icon } from '../../ui/icons.js'
+import { mountDock } from '../../components/Dock.js'
 import { fmtTime, haptic } from '../../ui/components.js'
 import './promotor.css'
 
@@ -25,22 +26,13 @@ async function loadView(id) {
 }
 
 function renderDock() {
-  dockEl.innerHTML = TABS.map(
-    (t) => `
-    <button class="dock-item ${active === t.id ? 'on' : ''}" data-tab="${t.id}" type="button" aria-label="${t.label}">
-      ${icon(t.icon, 23, 1.8)}
-      <span>${t.label}</span>
-      <span class="dot"></span>
-    </button>`,
-  ).join('')
-
-  dockEl.querySelectorAll('[data-tab]').forEach((b) => {
-    b.addEventListener('click', () => {
-      if (active !== b.dataset.tab) {
-        haptic(10)
-        switchTab(b.dataset.tab)
-      }
-    })
+  mountDock(dockEl, {
+    items: TABS,
+    active,
+    onSelect: (id) => {
+      haptic(10)
+      switchTab(id)
+    },
   })
 }
 

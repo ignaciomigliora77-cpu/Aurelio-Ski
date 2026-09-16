@@ -185,7 +185,8 @@ ul {
   letter-spacing: 0.02em;
 }
 
-.num {
+.num,
+.num-tabular {
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum';
   white-space: nowrap;
@@ -775,6 +776,27 @@ ul {
   color: var(--text-3);
 }
 
+.detail-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.detail-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--fill);
+  border: 1px solid transparent;
+  transition: background 0.15s ease;
+}
+
+.detail-row:hover {
+  background: var(--fill-strong);
+}
+
 /* ---------- Lista vertical de catálogo ---------- */
 
 .vlist {
@@ -1000,7 +1022,7 @@ ul {
   z-index: 50;
   display: flex;
   justify-content: center;
-  padding: 0 8px calc(8px + env(safe-area-inset-bottom, 0px));
+  padding: 0 8px calc(16px + env(safe-area-inset-bottom, 0px));
   pointer-events: none;
 }
 
@@ -1046,9 +1068,17 @@ ul {
   white-space: nowrap;
 }
 
-.dock-item.on {
+.dock-item.active {
   color: var(--accent);
   background: var(--accent-soft);
+}
+
+.dock-item.active svg {
+  transform: scale(1.14);
+}
+
+.dock-item svg {
+  transition: transform 0.28s var(--spring);
 }
 
 .dock-item .dot {
@@ -1060,7 +1090,7 @@ ul {
   opacity: 0;
 }
 
-.dock-item.on .dot {
+.dock-item.active .dot {
   opacity: 1;
 }
 
@@ -1301,6 +1331,71 @@ ul {
   padding: 12px 20px calc(16px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--separator-soft);
   flex: none;
+}
+
+/* ---------- Popover (centrado, escritorio) ---------- */
+
+.popover {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 80;
+  width: min(100% - 32px, 480px);
+  max-height: min(86svh, 640px);
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(40px) saturate(200%);
+  backdrop-filter: blur(40px) saturate(200%);
+  border: var(--glass-border);
+  border-radius: var(--r-squircle-lg);
+  box-shadow: var(--shadow-3);
+  animation: popoverIn 0.32s var(--ease-app);
+  overflow: hidden;
+  will-change: transform;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+.popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 22px 12px;
+  flex: none;
+}
+
+.popover-head h3 {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.popover-body {
+  padding: 0 22px 22px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.popover-foot {
+  padding: 12px 22px calc(16px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--separator-soft);
+  flex: none;
+}
+
+@keyframes popoverIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -46%) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
 }
 
 /* ---------- Toasts ---------- */
