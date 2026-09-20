@@ -1,7 +1,8 @@
-import { ORDERS, RENTALS, INCIDENTS, META } from './index.js'
+import { ORDERS, RENTALS, INCIDENTS, BAJAS, META } from './index.js'
 import { logAudit } from './audit.js'
 import { assertToken } from '../ui/confirm.js'
 import { categoryOf } from './categories.js'
+import { uid } from '../ui/components.js'
 
 /*
  * Número de bolsa correlativo 1–200 asignado en Recepción.
@@ -63,12 +64,16 @@ export async function approveOrder(orderId, { currency, doc, actor, rates }) {
       }
     })
   } catch (e) {
-    /* Si la venta no se pudo congelar (doble aprobación / doble dispositivo),
-       se devuelve el número de bolsa al contador para no dejar saltos en el
-       correlativo 1–200. */
-    if (e?.code === 'ALREADY' || String(e?.message || '').includes('ya fue procesada')) {
+    /* Si la congelación no quedó persistida (doble aprobación / error de red
+       tras consumir la bolsa), se devuelve el número al contador para no dejar
+       saltos en el correlativo 1–200. Se relee la orden para no dar marcha
+       atrás cuando NUESTRA escritura sí se persistió (respuesta perdida):
+       solo se revierte si la bolsa que se consumió no es la que quedó en la
+       venta. */
+    const fresh = await ORDERS().get(orderId).catch(() => null)
+    if (!fresh || fresh.bag !== bag) {
       const prev = ((bag - 2 + BAG_MAX) % BAG_MAX) + 1
-      await META().txOne('_bag', (fresh) => ({ next: prev }))
+      await META().txOne('_bag', (f) => ({ next: prev })).catch(() => {})
     }
     throw e
   }
@@ -140,7 +145,7 @@ export async function createIncident({ orderCode, type, itemName, qty, note, rep
 }
 
 export async function confirmReturn(orderCode, actor) {
-  const openInc = await INCIDENTS().where('orderCode').equals(orderCode).and((i) => i.status !== 'cerrado').toArray()
+  const openInc = await INCIDENTS().where('orderCode').equals(orderCode).and((i) => i.status !== 'cerrado' && i.status !== 'anulada').toArray()
   if (openInc.length) {
     throw fail(`Hay ${openInc.length} incidencia(s) abierta(s) · cerrá el caso antes de liberar la orden`, 'INCIDENCIA_ABIERTA')
   }
@@ -205,8 +210,67 @@ export async function anularSale(orderId, { note, token, actor }) {
     if (fresh.state !== 'aprobada') throw fail('Solo se anulan ventas aprobadas ya congeladas', 'NO_ANULABLE')
     return { ...fresh, state: 'anulada', anulacionNote: { at: Date.now(), by: actor, note: note || '' } }
   })
+  /* Anulación en cascada: se invalidan las referencias de la orden en todas
+     las estaciones activas y se limpia la cola de devoluciones, evitando
+     registros huérfanos. El listener onValue de cada estación refresca la
+     interfaz al instante. */
+  await cascadeAnulacion(o.code, actor)
   await logAudit(actor, 'venta.anular', o.code, { note: note || '', total: o.total, estado: 'anulada' })
   return o.code
+}
+
+/* ---------- Anulación en cascada ---------- */
+
+const CASCADE_STATUS = ['out', 'back']
+
+async function cascadeAnulacion(orderCode, actor) {
+  const at = Date.now()
+
+  const hadDeliveries =
+    (await RENTALS().where('orderCode').equals(orderCode).and((r) => CASCADE_STATUS.includes(r.status)).count()) > 0
+
+  /* 1) Estaciones activas (Ropa / Botas / Equipo): los rentals vigentes de la
+     orden pasan a 'anulada'. Desaparecen del inventario, de las listas de
+     entrega y de la cola de devoluciones. Los ya 'cerrado' quedan como trail. */
+  let rentals = 0
+  await RENTALS().tx((map) => {
+    for (const id of Object.keys(map)) {
+      const r = map[id]
+      if (r && r.orderCode === orderCode && CASCADE_STATUS.includes(r.status)) {
+        map[id] = { ...r, status: 'anulada', cascadeAt: at, cascadeBy: actor }
+        rentals += 1
+      }
+    }
+    return map
+  })
+
+  /* 2) Incidencias:
+     - Con entrega operativa e incidencias activas de rotura/pérdida/faltante:
+       se moven al histórico inmutable de "Bajas de Inventario / Daños",
+       desvinculándolas de la orden pero SIN borrar el registro del daño.
+     - Sin entrega (error de carga): se eliminan las incidencias temporales. */
+  const inc = await INCIDENTS().where('orderCode').equals(orderCode).and((i) => i.status === 'abierto').toArray()
+  let moved = 0
+  let removedInc = 0
+  for (const i of inc) {
+    if (hadDeliveries) {
+      await BAJAS().add({
+        id: i.id,
+        ...i,
+        status: 'baja',
+        orderCode: null,
+        fromOrder: orderCode,
+        bajaBy: actor,
+        bajaAt: at,
+      })
+      moved += 1
+    } else {
+      removedInc += 1
+    }
+    await INCIDENTS().delete(i.id)
+  }
+
+  await logAudit(actor, 'venta.anular.cascada', orderCode, { rentals, moved, removedInc })
 }
 
 /* ---------- Acción crítica genérica (con token firmado) ---------- */

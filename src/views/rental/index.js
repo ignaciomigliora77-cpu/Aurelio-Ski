@@ -76,7 +76,7 @@ const returnGroups = () => {
   for (const r of returnRows()) {
     if (!seen.has(r.orderCode)) seen.set(r.orderCode, r)
   }
-  return [...seen.values()].sort((a, b) => (b.outAt || 0) - (a.outAt || 0))
+  return [...seen.values()].sort((a, b) => (a.outAt || 0) - (b.outAt || 0))
 }
 
 async function refresh() {
@@ -222,7 +222,7 @@ function renderReturns() {
         const rows = groupRentalRows(g)
         const qty = rows.reduce((a, r) => a + (r.qty || 1), 0)
         return `
-        <button class="rt-card" data-return="${g.orderCode}" type="button">
+        <button class="rt-card rt-card--warn" data-return="${g.orderCode}" type="button">
           <div class="rt-card-main">
             <div class="rt-card-name">${esc(g.clientName || 'Cliente')}</div>
             <div class="rt-card-sub">Bolsa ${bagLabel(g.bag)} · entregada ${fmtDate(g.outAt)} ${fmtTime(g.outAt)}</div>
@@ -253,61 +253,64 @@ function openReturn(orderCode) {
           <div class="rt-card-name">${firstName ? esc(firstName) : 'Cliente'}</div>
           <div class="rt-bag-label rt-bag--alert">Bolsa ${bagLabel(bag)}</div>
         </div>
+        <span class="rt-count-pill rt-count-pill--alert rt-acc-badge" id="rt-acc">0 / ${rows.length}</span>
       </div>
-      <div class="mutest" style="font-size:12px;margin:2px 0 10px">Artículos que trajo de vuelta · revisión rápida</div>
+      <div class="mutest" style="font-size:12px;margin:2px 0 10px">Marcá solo los artículos que vuelven con rotura, pérdida o faltante. Cada uno admite su propio tipo y detalle; el resto se da por devuelto en orden.</div>
       <div class="rt-items">
         ${rows.map((r) => `
-          <div class="row-item" style="border-radius:14px">
+          <div class="row-item rt-check-row" data-rid="${r.id}">
+            <label class="rt-chk" for="rt-chk-${r.id}">
+              <input type="checkbox" id="rt-chk-${r.id}" class="rt-chk-input" />
+              <span class="rt-chk-box">${icon('check', 15, 2)}</span>
+            </label>
             <div class="row-thumb">${icon('check', 18, 2)}</div>
             <div class="row-main">
               <div class="row-title">${esc(r.name)}</div>
-              <div class="row-sub rt-qty-alert">Cantidad ${r.qty || 1}</div>
+              <div class="row-sub mutest">Cantidad ${r.qty || 1}</div>
             </div>
             <span class="amount rt-qty-alert" style="font-weight:600">× ${r.qty || 1}</span>
+            <div class="rt-inc-fields" hidden>
+              <div class="segmented rt-inc-type" data-rid="${r.id}">
+                <button data-intype="rotura" class="on" type="button">Rotura</button>
+                <button data-intype="perdida" type="button">Pérdida</button>
+                <button data-intype="faltante" type="button">Faltante</button>
+              </div>
+              <textarea class="input rt-inc-note" data-rid="${r.id}" placeholder="Detalle visible · observación (opcional)" rows="2" autocomplete="off"></textarea>
+            </div>
           </div>`).join('')}
-      </div>
-
-      <div class="ap-inc" style="margin-top:14px">
-        <label class="row" style="gap:10px;cursor:pointer">
-          <input type="checkbox" id="rt-inc" />
-          <span style="font-weight:600;font-size:14px">Reportar incidencia</span>
-          <span class="mutest" style="font-size:12px">rotura · pérdida · faltante</span>
-        </label>
-        <div id="rt-inc-box" hidden style="margin-top:12px;display:flex;flex-direction:column;gap:12px">
-          <div class="segmented" id="rt-inc-type">
-            <button data-intype="rotura" class="on" type="button">Rotura</button>
-            <button data-intype="perdida" type="button">Pérdida</button>
-            <button data-intype="faltante" type="button">Faltante</button>
-          </div>
-          <div class="field">
-            <label for="rt-inc-item">Artículo comprometido</label>
-            <select class="input" id="rt-inc-item">
-              ${rows.map((r) => `<option value="${r.id}">${esc(r.name)} · ×${r.qty || 1}</option>`).join('')}
-            </select>
-          </div>
-          <div class="field">
-            <label for="rt-inc-note">Detalle visible / observación</label>
-            <input class="input" id="rt-inc-note" placeholder="Ej: capa exterior rasgada…" autocomplete="off" />
-          </div>
-        </div>
       </div>
     `,
     footer: `
       <div class="mutest" style="font-size:12px;text-align:center;margin-bottom:8px">
-        El retorno queda reportado para que Recepción confirme el cierre formal del ciclo.
+        Los ítems marcados generan una incidencia individual y el retorno queda reportado para que Recepción confirme el cierre formal.
       </div>
-      <button class="btn btn--success btn--lg" id="do-return" type="button">${icon('check', 18, 2)} Confirmar retorno (todo)</button>
+      <button class="btn btn--success btn--lg" id="do-return" type="button">${icon('check', 18, 2)} Confirmar retorno</button>
     `,
   })
 
-  const incCheck = root.querySelector('#rt-inc')
-  const incBox = root.querySelector('#rt-inc-box')
-  incCheck.addEventListener('change', () => {
-    incBox.hidden = !incCheck.checked
+  const syncBtn = () => {
+    const sel = rows.reduce((a, r) => a + (root.querySelector(`#rt-chk-${r.id}`)?.checked ? 1 : 0), 0)
+    const acc = root.querySelector('#rt-acc')
+    if (acc) acc.textContent = `${sel} / ${rows.length}`
+    const btn = root.querySelector('#do-return')
+    btn.innerHTML = sel
+      ? `${icon('check', 18, 2)} Confirmar retorno · ${sel === 1 ? '1 incidencia' : `${sel} incidencias`}`
+      : `${icon('check', 18, 2)} Confirmar retorno`
+  }
+
+  rows.forEach((r) => {
+    const chk = root.querySelector(`#rt-chk-${r.id}`)
+    chk.addEventListener('change', () => {
+      const wrap = root.querySelector(`.rt-check-row[data-rid="${r.id}"]`)
+      wrap?.classList.toggle('rt-item--warn', chk.checked)
+      const f = wrap?.querySelector('.rt-inc-fields')
+      if (f) f.hidden = !chk.checked
+      syncBtn()
+    })
   })
-  root.querySelectorAll('#rt-inc-type [data-intype]').forEach((b) => {
+  root.querySelectorAll('.rt-inc-type button[data-intype]').forEach((b) => {
     b.addEventListener('click', () => {
-      root.querySelectorAll('#rt-inc-type [data-intype]').forEach((x) => x.classList.toggle('on', x === b))
+      b.parentElement.querySelectorAll('[data-intype]').forEach((x) => x.classList.toggle('on', x === b))
     })
   })
 
@@ -316,15 +319,17 @@ function openReturn(orderCode) {
     if (returning) return
     returning = true
     const s = session()
+    const flagged = rows.filter((r) => root.querySelector(`#rt-chk-${r.id}`)?.checked)
     try {
-      if (incCheck.checked) {
-        const type = root.querySelector('#rt-inc-type [data-intype].on')?.dataset.intype || 'rotura'
-        const itemRow = rows.find((r) => r.id === root.querySelector('#rt-inc-item').value) || rows[0]
-        const note = cleanText(root.querySelector('#rt-inc-note').value, 200)
+      for (const r of flagged) {
+        const seg = root.querySelector(`.rt-inc-type[data-rid="${r.id}"]`)
+        const type = seg?.querySelector('[data-intype].on')?.dataset.intype || 'rotura'
+        const noteEl = root.querySelector(`.rt-inc-note[data-rid="${r.id}"]`)
+        const note = cleanText(noteEl?.value || '', 200)
         await createIncident({
           orderCode,
           type,
-          itemName: itemRow?.name || '',
+          itemName: r.name || '',
           qty: 1,
           note,
           reportedBy: s.username,

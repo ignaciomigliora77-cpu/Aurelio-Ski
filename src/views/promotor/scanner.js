@@ -58,6 +58,23 @@ function hideOverlay() {
   if (ov) ov.hidden = true
 }
 
+/* Única fuente de verdad del estado visual del visor: el overlay (y su
+   texto) depende EXCLUSIVAMENTE del stream de getUserMedia. Si el stream
+   está activo el visor queda limpio con la guía de escaneo; nunca puede
+   mostrarse un texto de "cámara apagada/inactiva" con stream corriendo. */
+function syncCamUi() {
+  const ov = overlayEl()
+  if (!ov) return
+  if (stream) {
+    hideOverlay()
+    return
+  }
+  showOverlay()
+  if (starting) {
+    setOverlay('Iniciando cámara…', 'Permiso y activación del visor en curso.')
+  }
+}
+
 function setOverlay(title, sub) {
   const ov = overlayEl()
   if (!ov) return
@@ -128,18 +145,19 @@ function armResume(delay = 2500) {
 async function startCamera() {
   if (!isSupported()) {
     setOverlay('Cámara no disponible', 'Este dispositivo no expone cámara · usá el código manual.')
-    showOverlay()
+    syncCamUi()
     return
   }
   if (starting) return
   starting = true
+  syncCamUi()
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 1280 } },
       audio: false,
     })
     video.srcObject = stream
-    hideOverlay()
+    syncCamUi()
     /* play() no se espera: un rechazo de autoplay (Safari iOS) NO debe matar
        el stream ni mostrar un error falso. tick() reintenta el play mientras
        el stream siga vivo. El estado del visor depende SOLO del stream. */
@@ -150,9 +168,10 @@ async function startCamera() {
   } catch (e) {
     stopCamera()
     setOverlay(cameraErrTitle(e), cameraErrMessage(e))
-    showOverlay()
+    syncCamUi()
   } finally {
     starting = false
+    syncCamUi()
   }
 }
 
@@ -183,6 +202,7 @@ async function resumeCamera() {
   } else {
     await startCamera()
   }
+  syncCamUi()
 }
 
 async function requestPermissionAndStart() {
@@ -293,7 +313,7 @@ export function scannerView() {
 
     root.querySelector('#sc-start').addEventListener('click', startCamera)
     setOverlay('Cámara inactiva', 'Activá la cámara para escanear el código QR, o usá el ingreso manual.')
-    showOverlay()
+    syncCamUi()
     requestPermissionAndStart()
   }
 

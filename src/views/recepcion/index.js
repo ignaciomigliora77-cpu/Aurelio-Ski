@@ -84,7 +84,7 @@ const hasDeliveries = (o) => rentals.some((r) => r.orderCode === o.code && ['out
 
 const deletable = (o) => o.state === 'pendiente' || (o.state === 'aprobada' && !hasDeliveries(o))
 
-const openIncidents = (orderCode) => incidents.filter((i) => i.orderCode === orderCode && i.status !== 'cerrado')
+const openIncidents = (orderCode) => incidents.filter((i) => i.orderCode === orderCode && i.status !== 'cerrado' && i.status !== 'anulada')
 
 /* Solo aparece una devolución cuando el cliente terminó TODA su entrega:
    al menos un rental reportado en 'back' y ningún 'out' pendiente de la orden. */
@@ -95,7 +95,7 @@ const backGroups = () => {
     const stillOut = rentals.some((x) => x.orderCode === r.orderCode && x.status === 'out')
     if (!stillOut) seen.set(r.orderCode, r)
   }
-  return [...seen.values()].sort((a, b) => (b.returnAt || 0) - (a.returnAt || 0))
+  return [...seen.values()].sort((a, b) => (a.returnAt || 0) - (b.returnAt || 0))
 }
 
 async function getMeta(key, def = null) {
@@ -138,7 +138,7 @@ const amountOf = (o) => {
 function renderAprobacion() {
   const nPend = pending().length
   const nBack = backGroups().length
-  const nInc = incidents.filter((i) => i.status !== 'cerrado').length
+  const nInc = incidents.filter((i) => i.status !== 'cerrado' && i.status !== 'anulada').length
 
   panelEl.innerHTML = `
     <div class="recep-dash pop-in">
@@ -146,7 +146,7 @@ function renderAprobacion() {
       <div class="card card--unified">
         <div class="ap-tabs segmented">
           <button data-apt="aprobar" class="${apTab === 'aprobar' ? 'on' : ''}" type="button">${icon('check', 14, 2)} Aprobar${nPend ? ` · ${nPend}` : ''}</button>
-          <button data-apt="devolver" class="${apTab === 'devolver' ? 'on' : ''}" type="button">${icon('box', 14, 2)} A devolver${nBack ? ` · ${nBack}` : ''}</button>
+          <button data-apt="devolver" class="${apTab === 'devolver' ? 'on' : ''}" type="button">${icon('box', 14, 2)} A devolver${nBack ? ` · <b class="ap-alert-count">${nBack}</b>` : ''}</button>
           <button data-apt="problemas" class="${apTab === 'problemas' ? 'on' : ''}" type="button">${icon('xmark', 14, 2)} Problemas${nInc ? ` · ${nInc}` : ''}</button>
         </div>
         <div id="ap-body"></div>
@@ -283,7 +283,7 @@ function renderDevolverTab() {
 
   body.innerHTML = `
     <div class="metric-grid" style="padding:4px 10px">
-      <div class="metric"><span class="metric-label">Retornos reportados</span><span class="metric-value">${groups.length}</span><span class="metric-hint">listos para cierre formal</span></div>
+      <div class="metric metric--red"><span class="metric-label">Retornos reportados</span><span class="metric-value">${groups.length}</span><span class="metric-hint">listos para cierre formal</span></div>
     </div>
     ${groups.length ? groups.map((g) => {
       const order = orders.find((o) => o.code === g.orderCode)
@@ -294,7 +294,7 @@ function renderDevolverTab() {
           <div class="page-head" style="padding:14px 18px">
             <div class="grow">
               <div class="eyebrow">${esc(order?.clientName || g.clientName || 'Cliente')} · ${esc(g.orderCode)}</div>
-              <div class="mutest" style="font-size:12px;margin-top:2px">Bolsa ${esc(g.bag || '—')} · reportado ${fmtDateTime(g.returnAt)} · ${qty} ítem${qty !== 1 ? 's' : ''}</div>
+              <div class="mutest" style="font-size:12px;margin-top:2px">Bolsa ${esc(g.bag || '—')} · reportado ${fmtDateTime(g.returnAt)} · <b class="ap-alert-count">${qty} ítem${qty !== 1 ? 's' : ''}</b></div>
             </div>
             <span class="badge badge--green">Reportado</span>
           </div>
@@ -401,7 +401,7 @@ function openCloseIncident(inc) {
 
 function renderProblemasTab() {
   const body = panelEl.querySelector('#ap-body')
-  const list = incidents.filter((i) => i.status !== 'cerrado').sort((a, b) => b.at - a.at)
+  const list = incidents.filter((i) => i.status !== 'cerrado' && i.status !== 'anulada').sort((a, b) => b.at - a.at)
 
   body.innerHTML = `
     <div class="metric-grid" style="padding:4px 10px">

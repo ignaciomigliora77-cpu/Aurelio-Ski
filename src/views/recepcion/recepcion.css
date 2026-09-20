@@ -160,6 +160,11 @@
   padding: 14px;
 }
 
+/* Número de alerta rojo en los indicadores de "A devolver" (tab y desgloses) */
+.ap-alert-count {
+  color: var(--red);
+}
+
 .pd-card.squircle {
   margin-bottom: 14px;
   box-shadow: var(--shadow-1);

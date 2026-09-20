@@ -617,6 +617,10 @@ ul {
   color: var(--orange);
 }
 
+.metric--red .metric-value {
+  color: var(--red);
+}
+
 .metric--purple .metric-value {
   color: var(--purple);
 }

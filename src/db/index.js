@@ -19,6 +19,10 @@ const TABLES = [
   { name: 'incidents', keyField: 'id' },
   { name: 'audit', keyField: 'id', path: 'audit/items' },
   { name: 'meta', keyField: 'key' },
+  /* Histórico de "Bajas de Inventario / Daños": registro inmutable de
+     roturas/pérdidas/faltantes. Las incidencias activas de una orden anulada
+     se trasladan acá (desvinculadas) para preservar la auditoría del pañol. */
+  { name: 'bajas', keyField: 'id' },
 ]
 
 const stores = new Map()
@@ -268,6 +272,7 @@ export const LINKS = () => getCol('links')
 export const INCIDENTS = () => getCol('incidents')
 export const AUDIT = () => getCol('audit')
 export const META = () => getCol('meta')
+export const BAJAS = () => getCol('bajas')
 
 /* ---------- Arranque ---------- */
 
