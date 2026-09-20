@@ -1,7 +1,8 @@
 import { ORDERS, RENTALS, CATALOG, META, INCIDENTS, AUDIT, subscribeData } from '../../db/index.js'
 import { CATEGORIES, CATEGORY_IDS, categoryOf } from '../../db/categories.js'
-import { getSession, logout, listPromoters, resetAll } from '../../auth/index.js'
+import { getSession, logout, listPromoters, resetAll, verifySessionCred } from '../../auth/index.js'
 import { addPromoter, updatePromoter, removePromoter, subscribePromoters } from '../../promoters/firebase-promoters.js'
+import { signedToken } from '../../auth/crypto.js'
 import { navigate } from '../../router.js'
 import { icon } from '../../ui/icons.js'
 import { mountDock } from '../../components/Dock.js'
@@ -11,7 +12,7 @@ import { cleanText, slugUser, passValid, cleanDoc, cleanMoney, cleanInt } from '
 import { logAudit, verifyAudit } from '../../db/audit.js'
 import { approveOrder, confirmReturn, closeIncident, deleteSale, anularSale, runCritical } from '../../db/ops.js'
 import { archiveSeason } from '../../db/historico.js'
-import { confirmCritical } from '../../ui/confirm.js'
+import { confirmCritical, TOKEN_TTL } from '../../ui/confirm.js'
 import './recepcion.css'
 
 const SECTIONS = [
@@ -133,12 +134,11 @@ const amountOf = (o) => {
   return `${money(o.total)} ARS · (sin cotización histórica registrada)`
 }
 
-/* ---------------- Aprobación (unificada: Aprobar / A Devolver / Problemas) ---------------- */
+/* ---------------- Aprobación (unificada: Aprobar / A devolver) ---------------- */
 
 function renderAprobacion() {
   const nPend = pending().length
   const nBack = backGroups().length
-  const nInc = incidents.filter((i) => i.status !== 'cerrado' && i.status !== 'anulada').length
 
   panelEl.innerHTML = `
     <div class="recep-dash pop-in">
@@ -147,7 +147,6 @@ function renderAprobacion() {
         <div class="ap-tabs segmented">
           <button data-apt="aprobar" class="${apTab === 'aprobar' ? 'on' : ''}" type="button">${icon('check', 14, 2)} Aprobar${nPend ? ` · ${nPend}` : ''}</button>
           <button data-apt="devolver" class="${apTab === 'devolver' ? 'on' : ''}" type="button">${icon('box', 14, 2)} A devolver${nBack ? ` · <b class="ap-alert-count">${nBack}</b>` : ''}</button>
-          <button data-apt="problemas" class="${apTab === 'problemas' ? 'on' : ''}" type="button">${icon('xmark', 14, 2)} Problemas${nInc ? ` · ${nInc}` : ''}</button>
         </div>
         <div id="ap-body"></div>
       </div>
@@ -162,8 +161,7 @@ function renderAprobacion() {
   })
 
   if (apTab === 'aprobar') renderAprobarTab()
-  else if (apTab === 'devolver') renderDevolverTab()
-  else renderProblemasTab()
+  else renderDevolverTab()
 }
 
 /* --- Solapa Aprobar --- */
@@ -182,16 +180,16 @@ function renderAprobarTab() {
     ${pd.length ? pd.map((o) => {
       const cur = curSel[o.id] || null
       return `
-        <div class="pd-card squircle">
-          <div class="page-head" style="padding:14px 18px">
+        <details class="pd-card squircle pd-acc">
+          <summary class="pd-sum">
             <div class="grow">
-              <div class="eyebrow">${esc(o.code)}${o.clientName ? ` · cliente: <b>${esc(o.clientName)}</b>` : ''}</div>
-              <div class="mutest" style="font-size:12px;margin-top:2px">${esc(o.promoterId)} · ${o.itemQty} ítem${o.itemQty !== 1 ? 's' : ''} · ${money(o.total)} · ${fmtDateTime(o.createdAt)}</div>
+              <div class="eyebrow">${esc(o.code)}</div>
+              <div class="pd-sum-name">${esc(o.clientName || 'Cliente')}</div>
             </div>
-            <span class="badge badge--orange">Pendiente</span>
-          </div>
-          <details class="pd-detail">
-            <summary>${icon('list', 14, 2)} Ver detalle · ${o.itemQty} ítem${o.itemQty !== 1 ? 's' : ''}</summary>
+            <span class="pd-chev">${icon('chevron-right', 16, 2)}</span>
+          </summary>
+          <div class="pd-acc-body">
+            <div class="pd-meta mutest">${esc(o.promoterId)} · ${o.itemQty} ítem${o.itemQty !== 1 ? 's' : ''} · ${money(o.total)} · ${fmtDateTime(o.createdAt)}</div>
             <div class="pd-items">
               ${o.items.map((it) => `
                 <div class="row-item" style="border-radius:0;border-left:none;border-right:none">
@@ -203,29 +201,29 @@ function renderAprobarTab() {
                   <span class="amount" style="font-weight:600">${money(it.line)}</span>
                 </div>`).join('')}
             </div>
-          </details>
-          <div class="card card--padded" style="border:none;border-radius:0">
-            <div class="row" style="flex-wrap:wrap;gap:14px">
-              <div class="field grow" style="min-width:220px">
-                <label for="ap-cur-${o.id}">Moneda de cobro · obligatoria</label>
-                <div class="segmented">
-                  ${CUR_OPTS.map(([k, l]) => `<button data-cur="${k}" type="button" class="${cur === k ? 'on' : ''}">${l}</button>`).join('')}
+            <div class="card card--padded" style="border:none;border-radius:0">
+              <div class="row" style="flex-wrap:wrap;gap:14px">
+                <div class="field grow" style="min-width:220px">
+                  <label for="ap-cur-${o.id}">Moneda de cobro · obligatoria</label>
+                  <div class="segmented">
+                    ${CUR_OPTS.map(([k, l]) => `<button data-cur="${k}" type="button" class="${cur === k ? 'on' : ''}">${l}</button>`).join('')}
+                  </div>
+                </div>
+                <div class="field grow" style="min-width:220px">
+                  <label for="ap-doc-${o.id}">Documento del cliente (aval)</label>
+                  <input class="input" id="ap-doc-${o.id}" placeholder="DNI / Pasaporte" value="${esc(o.doc || '')}" autocomplete="off" />
                 </div>
               </div>
-              <div class="field grow" style="min-width:220px">
-                <label for="ap-doc-${o.id}">Documento del cliente (aval)</label>
-                <input class="input" id="ap-doc-${o.id}" placeholder="DNI / Pasaporte" value="${esc(o.doc || '')}" autocomplete="off" />
+              <div class="spread" style="margin-top:18px">
+                <span class="mutest">Total · <span data-cur-label>${cur ? cur.toUpperCase() : 'elegí la divisa'}</span></span>
+                <span class="big-number amount" data-cur-value>${cur ? fmtFx(cur, o.total) : '—'}</span>
               </div>
+              <button class="btn btn--success btn--lg" style="width:100%;margin-top:16px" data-approve="${o.id}" ${cur ? '' : 'disabled'} type="button">
+                ${icon('check', 18, 2)} ${cur ? 'Aprobar venta · generar bolsa' : 'Seleccioná la moneda para aprobar'}
+              </button>
             </div>
-            <div class="spread" style="margin-top:18px">
-              <span class="mutest">Total · <span data-cur-label>${cur ? cur.toUpperCase() : 'elegí la divisa'}</span></span>
-              <span class="big-number amount" data-cur-value>${cur ? fmtFx(cur, o.total) : '—'}</span>
-            </div>
-            <button class="btn btn--success btn--lg" style="width:100%;margin-top:16px" data-approve="${o.id}" ${cur ? '' : 'disabled'} type="button">
-              ${icon('check', 18, 2)} ${cur ? 'Aprobar venta · generar bolsa' : 'Seleccioná la moneda para aprobar'}
-            </button>
           </div>
-        </div>`
+        </details>`
     }).join('')
     : `<div class="empty">${icon('check', 38, 1.4)}<h4>Sin ventas pendientes</h4><p>Cuando la tablet de Ventas envíe una orden, aparece acá para tu visto bueno final.</p></div>`}
   `
@@ -287,26 +285,28 @@ function renderDevolverTab() {
     </div>
     ${groups.length ? groups.map((g) => {
       const order = orders.find((o) => o.code === g.orderCode)
-      const qty = rentals.filter((r) => r.orderCode === g.orderCode && r.status === 'back').reduce((a, r) => a + (r.qty || 1), 0)
       const inc = openIncidents(g.orderCode)
       return `
-        <div class="pd-card squircle">
-          <div class="page-head" style="padding:14px 18px">
+        <details class="pd-card squircle pd-acc ${inc.length ? 'pd-card--warn' : ''}">
+          <summary class="pd-sum">
             <div class="grow">
-              <div class="eyebrow">${esc(order?.clientName || g.clientName || 'Cliente')} · ${esc(g.orderCode)}</div>
-              <div class="mutest" style="font-size:12px;margin-top:2px">Bolsa ${esc(g.bag || '—')} · reportado ${fmtDateTime(g.returnAt)} · <b class="ap-alert-count">${qty} ítem${qty !== 1 ? 's' : ''}</b></div>
+              <div class="eyebrow">${esc(g.orderCode)}${inc.length ? ' · <b class="ap-alert-count">' + inc.length + ' incidencia(s)</b>' : ''}</div>
+              <div class="pd-sum-name">${esc(order?.clientName || g.clientName || 'Cliente')}</div>
             </div>
-            <span class="badge badge--green">Reportado</span>
+            <span class="pd-chev">${icon('chevron-right', 16, 2)}</span>
+          </summary>
+          <div class="pd-acc-body">
+            ${inc.length ? `<div class="pd-inc-list">${inc.map((i) => renderIncBlock(i, order)).join('')}</div>` : ''}
+            <div class="pd-confirm card card--padded" style="border:none;border-radius:0">
+              <button class="btn btn--success btn--lg" style="width:100%" data-confirm="${g.orderCode}" ${inc.length ? 'disabled' : ''} type="button">
+                ${icon('check', 18, 2)} Devolver DNI y Cerrar Orden
+              </button>
+              ${inc.length ? `<p class="mutest" style="font-size:12px;text-align:center;margin-top:8px">Resolvé las ${inc.length} incidencia(s) para habilitar el cierre de la orden.</p>` : ''}
+            </div>
           </div>
-          ${inc.length ? `<div class="card card--padded" style="border:none;border-radius:0;background:var(--red-soft,#3a1f24)"><span style="color:#ff8f9b;font-size:13px">${icon('xmark', 14, 2)} ${inc.length} incidencia(s) abierta(s) · resolvé en “Problemas” antes de cerrar</span></div>` : ''}
-          <div class="card card--padded" style="border:none;border-radius:0">
-            <button class="btn btn--success btn--lg" style="width:100%" data-confirm="${g.orderCode}" ${inc.length ? 'disabled' : ''} type="button">
-              ${icon('check', 18, 2)} Confirmar cierre formal
-            </button>
-          </div>
-        </div>`
+        </details>`
     }).join('')
-    : `<div class="empty">${icon('box', 38, 1.4)}<h4>Sin retornos pendientes</h4><p>Cuando las estaciones de Ropa y Botas reporten una devolución, aparece acá para cerrar el ciclo.</p></div>`}
+    : `<div class="empty">${icon('box', 38, 1.4)}<h4>Sin retornos pendientes</h4><p>Cuando todas las estaciones de la orden reporten su devolución, aparece acá para unificar y cerrar el ciclo.</p></div>`}
   `
 
   body.querySelectorAll('[data-confirm]').forEach((b) => {
@@ -315,7 +315,7 @@ function renderDevolverTab() {
       b.disabled = true
       try {
         const n = await confirmReturn(b.dataset.confirm, s.username)
-        ok(`Orden ${b.dataset.confirm} cerrada · ${n} ítem${n !== 1 ? 's' : ''}`)
+        ok(`Orden ${b.dataset.confirm} cerrada · ${n} ítem${n !== 1 ? 's' : ''} · DNI/aval devuelto al cliente`)
         haptic([20, 40, 30])
         await refresh(true)
       } catch (e) {
@@ -324,121 +324,135 @@ function renderDevolverTab() {
       }
     })
   })
+  wireIncidents(body)
 }
 
-/* --- Solapa Problemas --- */
-
-function openCloseIncident(inc) {
-  const order = orders.find((o) => o.code === inc.orderCode)
-  const { close, root } = openSheet({
-    title: 'Cierre de incidencia',
-    body: `
-      <p class="mutest" style="font-size:12px;line-height:1.5">
-        Orden <b>${esc(inc.orderCode)}</b>${order?.clientName ? ` · cliente <b>${esc(order.clientName)}</b>` : ''} ·
-        <b>${INC_LABEL[inc.type] || inc.type}</b> · ${esc(inc.itemName)} · ×${inc.qty}
-      </p>
-      ${inc.note ? `<p class="mutest" style="font-size:12px;margin-top:6px">«${esc(inc.note)}»</p>` : ''}
-      <div class="stack" style="gap:14px;margin-top:14px">
-        <div class="field">
-          <label>¿Fue abonado por el cliente?</label>
-          <div class="segmented" id="inc-paid">
-            <button data-paid="1" class="on" type="button">Sí · abonado</button>
-            <button data-paid="0" type="button">No · pendiente de cobro</button>
-          </div>
+/* Bloque de resolución inline por incidencia. Cada incidencia tiene su propio
+   monto, moneda, toggle de cobro y token de autorización. Nunca se agrupan. */
+function renderIncBlock(i, order) {
+  const defCur = order?.currency || 'ars'
+  return `
+    <div class="pd-inc-block">
+      <div class="row-item" style="border-radius:12px">
+        <div class="row-thumb">${icon('xmark', 18, 1.8)}</div>
+        <div class="row-main">
+          <div class="row-title">${esc(i.itemName)}</div>
+          <div class="row-sub">${INC_LABEL[i.type] || i.type}${i.note ? ` · «${esc(i.note)}»` : ''} · ×${i.qty}</div>
         </div>
-        <div class="row" style="gap:12px">
-          <div class="field grow">
-            <label for="inc-amount">Monto exacto (ARS)</label>
-            <input class="input" id="inc-amount" type="number" step="0.01" min="0" placeholder="0" autocomplete="off" />
-          </div>
-          <div class="field" style="min-width:150px">
-            <label>Divisa</label>
-            <div class="segmented" id="inc-cur">
-              ${CUR_OPTS.map(([k, l]) => `<button data-cur="${k}" class="${k === 'ars' ? 'on' : ''}" type="button">${l}</button>`).join('')}
-            </div>
-          </div>
+        <span class="badge badge--orange">${INC_LABEL[i.type] || i.type}</span>
+      </div>
+      <div class="row" style="gap:12px;margin-top:10px">
+        <div class="field grow">
+          <label for="incamt-${i.id}">Monto a cobrar</label>
+          <input class="input pd-inc-amount" id="incamt-${i.id}" type="number" step="0.01" min="0" placeholder="0" autocomplete="off" inputmode="decimal" />
         </div>
-        <div class="field">
-          <label for="inc-note">Observación de cierre</label>
-          <input class="input" id="inc-note" placeholder="Ej: abonó reposición del casco" autocomplete="off" />
+        <div class="field" style="min-width:150px">
+          <label>Moneda</label>
+          <div class="segmented pd-inc-cur">
+            ${CUR_OPTS.map(([k, l]) => `<button data-cur="${k}" class="${defCur === k ? 'on' : ''}" type="button">${l}</button>`).join('')}
+          </div>
         </div>
       </div>
-    `,
-    footer: `<button class="btn btn--danger btn--lg" id="inc-close" type="button">${icon('check', 17, 2)} Cerrar caso contablemente</button>`,
-  })
+      <div class="segmented pd-inc-paid" style="margin-top:10px">
+        <button data-paid="pagado" type="button">${icon('check', 14, 2)} Pago Realizado</button>
+        <button data-paid="pendiente" type="button">${icon('clock', 14, 2)} Pendiente</button>
+      </div>
+      <div class="pd-inc-auth" hidden>
+        <p class="mutest" style="font-size:12px;line-height:1.5;margin-top:4px">Ingresá el token de autorización para registrar la resolución de esta incidencia.</p>
+        <div class="field" style="margin-top:8px">
+          <label for="inctok-${i.id}">Token de Autorización</label>
+          <input class="input pd-inc-token" id="inctok-${i.id}" type="password" autocomplete="off" placeholder="Contraseña del administrador" />
+        </div>
+        <p class="mutest pd-inc-err" role="alert" style="font-size:12px;color:var(--red);margin-top:6px"></p>
+        <button class="btn btn--primary btn--lg" style="width:100%;margin-top:6px" data-incgo="${i.id}" type="button">${icon('doc', 17, 2)} Confirmar Resolución</button>
+      </div>
+    </div>`
+}
 
-  root.querySelectorAll('#inc-paid [data-paid]').forEach((b) => {
+function wireIncidents(root) {
+  root.querySelectorAll('.pd-inc-paid [data-paid]').forEach((b) => {
     b.addEventListener('click', () => {
-      root.querySelectorAll('#inc-paid [data-paid]').forEach((x) => x.classList.toggle('on', x === b))
+      const seg = b.closest('.segmented')
+      seg.querySelectorAll('[data-paid]').forEach((x) => x.classList.toggle('on', x === b))
+      const auth = b.closest('.pd-inc-block').querySelector('.pd-inc-auth')
+      if (auth) auth.hidden = false
     })
   })
-  root.querySelectorAll('#inc-cur [data-cur]').forEach((b) => {
+  root.querySelectorAll('.pd-inc-cur [data-cur]').forEach((b) => {
     b.addEventListener('click', () => {
-      root.querySelectorAll('#inc-cur [data-cur]').forEach((x) => x.classList.toggle('on', x === b))
+      const seg = b.closest('.segmented')
+      seg.querySelectorAll('[data-cur]').forEach((x) => x.classList.toggle('on', x === b))
     })
   })
-
-  root.querySelector('#inc-close').addEventListener('click', async () => {
-    const amount = cleanMoney(root.querySelector('#inc-amount').value)
-    if (amount === null || amount <= 0) return err('Registrá el monto exacto antes de cerrar')
-    const currency = root.querySelector('#inc-cur [data-cur].on')?.dataset.cur || 'ars'
-    const paid = root.querySelector('#inc-paid [data-paid].on')?.dataset.paid === '1'
-    const note = cleanText(root.querySelector('#inc-note').value, 200)
-    const tok = await confirmCritical({ action: 'incidencia.cerrar', target: inc.orderCode, word: 'CERRAR', note: `Monto ${money(amount)} · ¿abonado? ${paid ? 'sí' : 'no'}` })
-    if (!tok) return
-    const s = getSession()
-    try {
-      await closeIncident(inc.id, { amount, currency, paid, note, actor: s.username, token: tok })
-      ok(`Incidencia cerrada · ${money(amount)} en ${currency.toUpperCase()}${paid ? ' · abonado' : ' · pendiente'}`)
-      haptic([20, 40, 20])
-      close()
-      await refresh(true)
-    } catch (e) {
-      err(e?.message || 'No se pudo cerrar la incidencia')
-    }
+  root.querySelectorAll('[data-incgo]').forEach((b) => {
+    b.addEventListener('click', () => resolveIncident(b))
   })
 }
 
-function renderProblemasTab() {
-  const body = panelEl.querySelector('#ap-body')
-  const list = incidents.filter((i) => i.status !== 'cerrado' && i.status !== 'anulada').sort((a, b) => b.at - a.at)
+async function resolveIncident(btn) {
+  const block = btn.closest('.pd-inc-block')
+  const inc = incidents.find((x) => x.id === btn.dataset.incgo)
+  if (!inc || !block) return
 
-  body.innerHTML = `
-    <div class="metric-grid" style="padding:4px 10px">
-      <div class="metric metric--orange"><span class="metric-label">Casos abiertos</span><span class="metric-value">${list.length}</span><span class="metric-hint">roturas · pérdidas · faltantes</span></div>
-    </div>
-    ${list.length ? list.map((inc) => {
-      const order = orders.find((o) => o.code === inc.orderCode)
-      return `
-        <div class="pd-card squircle">
-          <div class="page-head" style="padding:14px 18px">
-            <div class="grow">
-              <div class="eyebrow">${esc(order?.clientName || 'Cliente')} · ${esc(inc.orderCode)}</div>
-              <div class="mutest" style="font-size:12px;margin-top:2px">${fmtDateTime(inc.at)} · reportado por <b>${esc(inc.reportedBy)}</b></div>
-            </div>
-            <span class="badge badge--orange">${INC_LABEL[inc.type] || inc.type}</span>
-          </div>
-          <div class="row-item" style="border-radius:12px;margin:0 14px">
-            <div class="row-thumb">${icon('box', 18, 1.8)}</div>
-            <div class="row-main">
-              <div class="row-title">${esc(inc.itemName)}</div>
-              <div class="row-sub">×${inc.qty}${inc.note ? ` · «${esc(inc.note)}»` : ''}</div>
-            </div>
-          </div>
-          <div class="card card--padded" style="border:none;border-radius:0">
-            <button class="btn btn--primary btn--lg" style="width:100%" data-incclose="${inc.id}" type="button">${icon('doc', 17, 2)} Procesar cobro y cerrar caso</button>
-          </div>
-        </div>`
-    }).join('')
-    : `<div class="empty">${icon('check', 38, 1.4)}<h4>Sin incidencias abiertas</h4><p>Los problemas detectados en la devolución aparecen acá para su control financiero.</p></div>`}
-  `
+  const amount = cleanMoney(block.querySelector('.pd-inc-amount').value)
+  const errEl = block.querySelector('.pd-inc-err')
+  if (amount === null || amount <= 0) {
+    errEl.textContent = 'Registrá un monto válido mayor a cero.'
+    haptic([18, 40])
+    return
+  }
+  const currency = block.querySelector('.pd-inc-cur [data-cur].on')?.dataset.cur || 'ars'
+  const paid = block.querySelector('.pd-inc-paid [data-paid].on')?.dataset.paid === 'pagado'
+  const tokenInput = block.querySelector('.pd-inc-token')
+  const token = tokenInput.value.trim()
+  if (!token) {
+    errEl.textContent = 'Ingresá el token de autorización.'
+    haptic([18, 40])
+    return
+  }
 
-  body.querySelectorAll('[data-incclose]').forEach((b) => {
-    b.addEventListener('click', () => {
-      const inc = incidents.find((x) => x.id === b.dataset.incclose)
-      if (inc) openCloseIncident(inc)
+  block.querySelectorAll('input,button').forEach((el) => { el.disabled = true })
+  errEl.textContent = ''
+  const s = getSession()
+
+  /* La validación inline NO toca la cadena criptográfica existente:
+     verifySessionCred → signedToken → assertToken se usa tal cual. */
+  let verified = false
+  try { verified = await verifySessionCred(token) } catch { verified = false }
+  if (!verified) {
+    errEl.textContent = 'Token de autorización inválido · reintentá.'
+    tokenInput.value = ''
+    block.querySelectorAll('input,button').forEach((el) => { el.disabled = false })
+    haptic([40, 60, 40])
+    return
+  }
+
+  try {
+    const nonce = uid()
+    const expiresAt = Date.now() + TOKEN_TTL
+    const signed = await signedToken('incidencia.cerrar', inc.orderCode, s.username, nonce, expiresAt)
+    await closeIncident(inc.id, {
+      amount,
+      currency,
+      paid,
+      note: '',
+      actor: s.username,
+      token: { action: 'incidencia.cerrar', target: inc.orderCode, nonce, expiresAt, token: signed },
     })
-  })
+  } catch (e) {
+    errEl.textContent = e?.message || 'No se pudo resolver la incidencia'
+    tokenInput.value = ''
+    block.querySelectorAll('input,button').forEach((el) => { el.disabled = false })
+    haptic([40, 60, 40])
+    return
+  }
+
+  tokenInput.value = ''
+  block.querySelectorAll('input,button').forEach((el) => { el.disabled = true })
+  block.classList.add('pd-inc-resolved')
+  ok(`Incidencia resuelta · ${money(amount)} en ${currency.toUpperCase()}${paid ? ' · pago realizado' : ' · pendiente'}`)
+  haptic([30, 50, 40])
+  setTimeout(() => refresh(true), 700)
 }
 
 /* ---------------- Resumen ---------------- */
@@ -486,7 +500,6 @@ function renderResumen() {
               </div>
               <div class="row-sub">${o.clientName ? `${esc(o.clientName)} · ` : ''}${o.promoterId} · ${fmtTime(o.createdAt)} · ${o.itemQty} ítem${o.itemQty !== 1 ? 's' : ''}</div>
             </div>
-            ${o.bag ? `<span class="badge badge--green" style="margin-right:6px">Bolsa ${esc(o.bag)}</span>` : ''}
             <span class="badge badge--green">Aprobada</span>
           </div>`).join('')
           : `<div class="empty" style="padding:32px 18px">${icon('ticket', 38, 1.4)}<h4>Sin ventas aprobadas hoy</h4></div>`}
@@ -521,7 +534,7 @@ function renderVentas() {
               <div class="mutest" style="font-size:12px;margin-top:2px">${esc(o.promoterId)} · ${fmtDateTime(o.createdAt)}</div>
             </div>
             <span class="${isApproved(o) ? 'badge badge--green' : 'badge badge--orange'}">${isApproved(o)
-              ? `${o.currency ? o.currency.toUpperCase() : 'ARS'} · Aprobada${o.bag ? ` · ${esc(o.bag)}` : ''}`
+              ? `${o.currency ? o.currency.toUpperCase() : 'ARS'} · Aprobada`
               : 'Pendiente'}</span>
           </div>
           <div class="sales-body">

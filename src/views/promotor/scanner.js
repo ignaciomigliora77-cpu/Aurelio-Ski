@@ -26,62 +26,6 @@ const isSupported = () => {
 
 const normalize = (raw) => String(raw || '').trim().toUpperCase().replace(/\u200b/g, '')
 
-const cameraErrMessage = (e) => {
-  const name = e?.name || ''
-  if (name === 'NotAllowedError' || name === 'SecurityError') return 'Permiso de cámara denegado · habilitalo en el navegador'
-  if (name === 'NotFoundError' || name === 'DevicesNotFoundError') return 'No se detectó ninguna cámara en este dispositivo · usá el código manual'
-  if (name === 'NotReadableError' || name === 'TrackStartError') return 'La cámara está en uso por otra app · cerrá la otra y reintentá'
-  if (name === 'OverconstrainedError') return 'No hay una cámara compatible · usá la trasera o el código manual'
-  return 'No se pudo iniciar la cámara · usá el código manual o reintentá'
-}
-
-const cameraErrTitle = (e) => {
-  const name = e?.name || ''
-  if (name === 'NotAllowedError' || name === 'SecurityError') return 'Permiso de cámara denegado'
-  if (name === 'NotFoundError' || name === 'DevicesNotFoundError') return 'Cámara no encontrada'
-  if (name === 'NotReadableError' || name === 'TrackStartError') return 'Cámara en uso'
-  if (name === 'OverconstrainedError') return 'Cámara no compatible'
-  return 'No se pudo iniciar la cámara'
-}
-
-function overlayEl() {
-  return root?.querySelector('#sc-overlay')
-}
-
-function showOverlay() {
-  const ov = overlayEl()
-  if (ov) ov.hidden = false
-}
-
-function hideOverlay() {
-  const ov = overlayEl()
-  if (ov) ov.hidden = true
-}
-
-/* Única fuente de verdad del estado visual del visor: el overlay (y su
-   texto) depende EXCLUSIVAMENTE del stream de getUserMedia. Si el stream
-   está activo el visor queda limpio con la guía de escaneo; nunca puede
-   mostrarse un texto de "cámara apagada/inactiva" con stream corriendo. */
-function syncCamUi() {
-  const ov = overlayEl()
-  if (!ov) return
-  if (stream) {
-    hideOverlay()
-    return
-  }
-  showOverlay()
-  if (starting) {
-    setOverlay('Iniciando cámara…', 'Permiso y activación del visor en curso.')
-  }
-}
-
-function setOverlay(title, sub) {
-  const ov = overlayEl()
-  if (!ov) return
-  ov.querySelector('#sc-ov-title').textContent = title
-  ov.querySelector('#sc-ov-sub').textContent = sub || ''
-}
-
 async function handleScan(raw) {
   const code = normalize(raw)
   if (!code || busy) return
@@ -143,35 +87,26 @@ function armResume(delay = 2500) {
 }
 
 async function startCamera() {
-  if (!isSupported()) {
-    setOverlay('Cámara no disponible', 'Este dispositivo no expone cámara · usá el código manual.')
-    syncCamUi()
-    return
-  }
+  if (!isSupported()) return
   if (starting) return
   starting = true
-  syncCamUi()
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 1280 } },
       audio: false,
     })
     video.srcObject = stream
-    syncCamUi()
     /* play() no se espera: un rechazo de autoplay (Safari iOS) NO debe matar
        el stream ni mostrar un error falso. tick() reintenta el play mientras
-       el stream siga vivo. El estado del visor depende SOLO del stream. */
+       el stream siga vivo. El visor solo muestra el stream de cámara. */
     const p = video.play()
     if (p && typeof p.catch === 'function') p.catch(() => {})
     loopId = setInterval(tick, 300)
     haptic(12)
   } catch (e) {
     stopCamera()
-    setOverlay(cameraErrTitle(e), cameraErrMessage(e))
-    syncCamUi()
   } finally {
     starting = false
-    syncCamUi()
   }
 }
 
@@ -202,7 +137,6 @@ async function resumeCamera() {
   } else {
     await startCamera()
   }
-  syncCamUi()
 }
 
 async function requestPermissionAndStart() {
@@ -266,16 +200,6 @@ export function scannerView() {
         <div class="scanner-viewport">
           <video id="sc-video" playsinline muted autoplay webkit-playsinline></video>
           <canvas id="sc-canvas" hidden></canvas>
-          <div class="scanner-scanline"></div>
-          <div class="scanner-corners"><span></span><span></span><span></span><span></span></div>
-          <div class="scanner-overlay" id="sc-overlay" hidden>
-            <div class="scanner-overlay-inner">
-              <div class="scanner-overlay-icon">${icon('camera', 26, 2)}</div>
-              <div class="scanner-overlay-title" id="sc-ov-title">Cámara inactiva</div>
-              <div class="scanner-overlay-sub" id="sc-ov-sub"></div>
-              <button class="btn btn--accent" id="sc-start" type="button">${icon('camera', 18, 2)} Activar cámara</button>
-            </div>
-          </div>
         </div>
 
         <div class="scan-manual">
@@ -311,9 +235,6 @@ export function scannerView() {
       if (e.key === 'Enter') doManual()
     })
 
-    root.querySelector('#sc-start').addEventListener('click', startCamera)
-    setOverlay('Cámara inactiva', 'Activá la cámara para escanear el código QR, o usá el ingreso manual.')
-    syncCamUi()
     requestPermissionAndStart()
   }
 

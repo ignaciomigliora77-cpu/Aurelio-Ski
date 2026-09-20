@@ -163,16 +163,7 @@
   gap: 8px;
 }
 
-/* ---------- Devolución: resaltado naranja y ítems checables ---------- */
-
-.rental .rt-card--warn {
-  background: var(--orange-soft);
-  border: 1px solid var(--orange, rgba(255, 149, 0, 0.45));
-}
-
-.rental .rt-card--warn .rt-card-sub {
-  color: rgba(255, 149, 0, 0.75);
-}
+/* ---------- Devolución: ítems checables ---------- */
 
 .rental .rt-acc-badge {
   margin-left: auto;

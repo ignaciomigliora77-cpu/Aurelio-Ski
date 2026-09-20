@@ -170,6 +170,142 @@
   box-shadow: var(--shadow-1);
 }
 
+/* --- Acordeón de Aprobación / A devolver --- */
+
+.pd-acc {
+  overflow: hidden;
+}
+
+.pd-sum {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+}
+
+.pd-sum::-webkit-details-marker {
+  display: none;
+}
+
+.pd-sum:active {
+  background: var(--fill);
+}
+
+.pd-sum-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.pd-chev {
+  display: inline-flex;
+  color: var(--text-3);
+  transition: transform 0.22s ease;
+}
+
+.pd-acc[open] > .pd-sum .pd-chev {
+  transform: rotate(90deg);
+}
+
+.pd-acc-body {
+  padding: 0 12px 14px;
+  border-top: 1px solid var(--separator-soft);
+}
+
+.pd-meta {
+  font-size: 12px;
+  padding: 10px 4px 4px;
+}
+
+/* Alerta naranja: solo si la orden tiene incidencias abiertas (sin cerrar ni anular) */
+.pd-card--warn {
+  border: 1px solid var(--orange-soft);
+  box-shadow: 0 0 0 1px var(--orange-soft);
+}
+
+.pd-card--warn .pd-sum {
+  background: var(--orange-soft);
+}
+
+.pd-card--warn .pd-sum-name {
+  color: var(--text-primary);
+}
+
+/* --- Bloques de resolución de incidencias (uno por incidencia, nunca fusionados) --- */
+
+.pd-inc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 0;
+}
+
+.pd-inc-block {
+  background: var(--bg-elev);
+  border: 1px solid var(--separator-soft);
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.pd-inc-paid .on {
+  background: var(--accent);
+  color: var(--accent-contrast, #fff);
+}
+
+.pd-inc-auth {
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--fill);
+  margin-top: 12px;
+}
+
+.pd-inc-err {
+  min-height: 16px;
+}
+
+/* Check verde de resolución alcanzada (breve, antes del refresh) */
+.pd-inc-block {
+  position: relative;
+}
+
+.pd-inc-resolved::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  background: rgba(52, 199, 89, 0.22);
+  z-index: 2;
+  animation: inc-fade 0.5s ease forwards;
+}
+
+.pd-inc-resolved::before {
+  content: '✓';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  font-weight: 800;
+  color: var(--green);
+  z-index: 3;
+  animation: inc-pop 0.35s ease;
+}
+
+@keyframes inc-pop {
+  0% { transform: scale(0.4); opacity: 0; }
+  70% { transform: scale(1.15); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes inc-fade {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
 .pd-detail {
   margin: 6px 12px 0;
 }

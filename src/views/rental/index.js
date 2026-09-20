@@ -48,28 +48,23 @@ const groupRental = (r) => categoryOf(r.category).group === profile
 
 const groupDelivered = (o) => rentals.some((x) => x.orderCode === o.code && groupRental(x))
 
-/* Una orden aparece en una estación solo si TODAS las estaciones del pedido
-   ya completaron su entrega (todos los grupos tienen rentals activos). */
-const orderComplete = (orderCode) => {
-  const o = orders.find((x) => x.code === orderCode)
-  if (!o || !o.items?.length) return false
-  const groups = new Set(o.items.map((it) => itemGroup(it)).filter(Boolean))
-  if (!groups.size) return false
-  for (const g of groups) {
-    if (!rentals.some((r) => r.orderCode === orderCode && categoryOf(r.category).group === g)) return false
-  }
-  return true
-}
-
 const bagLabel = (b) =>
   typeof b === 'number' || /^\d+$/.test(String(b)) ? `Nº ${b}` : String(b || '—')
+
+/* El número de bolsa es dato exclusivo del sector Ropa. Botas y Equipos no
+   lo muestran en ninguna tarjeta; solo Ropa lo anuncia. */
+const isRopa = () => profile === 'ropa'
 
 const activeOrders = () =>
   orders
     .filter((o) => o.state === 'aprobada' && groupItems(o).length > 0 && !groupDelivered(o))
     .sort((a, b) => (b.approvedAt || b.createdAt || 0) - (a.approvedAt || a.createdAt || 0))
 
-const returnRows = () => rentals.filter((r) => r.status === 'out' && groupRental(r) && orderComplete(r.orderCode))
+/* La cola de devoluciones de un sector depende SOLO de ese sector: en cuanto
+   el pañolero confirma la entrega (status 'out'), el pedido aparece para
+   recibir y marcar la devolución. No espera a otros sectores (eso es tarea
+   de Recepción, que unifica cuando TODOS devolvieron). */
+const returnRows = () => rentals.filter((r) => r.status === 'out' && groupRental(r))
 
 const returnGroups = () => {
   const seen = new Map()
@@ -103,7 +98,7 @@ function renderActivos() {
         <button class="rt-card" data-order="${o.id}" type="button">
           <div class="rt-card-main">
             <div class="rt-card-name">${esc(o.clientName || 'Cliente')}</div>
-            <div class="rt-card-sub">Bolsa ${bagLabel(o.bag)} · aprobada ${fmtTime(o.approvedAt || o.createdAt)}</div>
+            <div class="rt-card-sub">${isRopa() ? `Bolsa ${bagLabel(o.bag)} · ` : ''}aprobada ${fmtTime(o.approvedAt || o.createdAt)}</div>
           </div>
           <div class="rt-count">${qty}</div>
         </button>`
@@ -124,7 +119,7 @@ function openTicket(o) {
         <div class="rt-avatar">${icon('box', 20, 2)}</div>
         <div class="grow">
           <div class="rt-card-name">${esc(o.clientName || 'Cliente')}</div>
-          <div class="rt-bag-label">Bolsa ${bagLabel(o.bag)}</div>
+          ${isRopa() ? `<div class="rt-bag-label">Bolsa ${bagLabel(o.bag)}</div>` : ''}
         </div>
       </div>
       <div class="rt-items">
@@ -139,7 +134,7 @@ function openTicket(o) {
           </div>`).join('')}
       </div>
       <div class="mutest" style="text-align:center;font-size:12px;margin-top:10px">
-        ${groupQty(items)} elemento${groupQty(items) !== 1 ? 's' : ''} · bolsa unificada para este cliente
+        ${groupQty(items)} elemento${groupQty(items) !== 1 ? 's' : ''}${isRopa() ? ' · bolsa unificada para este cliente' : ' · entrega de tu estación'}
       </div>
     `,
     footer: `<button class="btn btn--success btn--lg" id="do-deliver" type="button">${icon('box', 18, 2)} Entregar</button>`,
@@ -176,17 +171,20 @@ function openTicket(o) {
       paint()
       return
     }
-    await playDeliverAnim(o)
+    await playSuccessAnim({
+      title: 'Todo entregado correctamente',
+      sub: isRopa() ? `Bolsa ${bagLabel(o.bag)} · armada y lista` : 'Todos los ítems · armados y listos',
+    })
     close()
     delivering = false
-    ok(`Bolsa ${bagLabel(o.bag)} entregada · todo listo`)
+    ok(isRopa() ? `Bolsa ${bagLabel(o.bag)} entregada · todo listo` : 'Entrega registrada · todo listo')
     haptic([30, 50, 40])
     await refresh()
     paint()
   })
 }
 
-function playDeliverAnim(o) {
+function playSuccessAnim({ title, sub }) {
   return new Promise((resolve) => {
     const host = document.querySelector('#app') || document.body
     const el = document.createElement('div')
@@ -194,8 +192,8 @@ function playDeliverAnim(o) {
     el.innerHTML = `
       <div class="rt-anim-inner">
         <div class="rt-anim-check">${icon('check', 34, 2.6)}</div>
-        <div class="rt-anim-title">Todo entregado correctamente</div>
-        <div class="rt-anim-sub">Bolsa ${bagLabel(o.bag)} · armada y lista</div>
+        <div class="rt-anim-title">${esc(title)}</div>
+        <div class="rt-anim-sub">${esc(sub || '')}</div>
         <div class="rt-anim-bar"><span></span></div>
       </div>
     `
@@ -213,7 +211,7 @@ function playDeliverAnim(o) {
 function renderReturns() {
   const groups = returnGroups()
   if (!groups.length) {
-    listEl.innerHTML = emptyState('box', 'Sin devoluciones pendientes', 'Las entregas aparecen acá una vez que todas las estaciones completaron el armado de la bolsa y quedó lista la devolución.')
+    listEl.innerHTML = emptyState('box', 'Sin devoluciones pendientes', 'Las entregas de este sector aparecen acá para recibir de vuelta el material y marcarlo como devuelto.')
     return
   }
   listEl.innerHTML = `
@@ -222,10 +220,10 @@ function renderReturns() {
         const rows = groupRentalRows(g)
         const qty = rows.reduce((a, r) => a + (r.qty || 1), 0)
         return `
-        <button class="rt-card rt-card--warn" data-return="${g.orderCode}" type="button">
+        <button class="rt-card" data-return="${g.orderCode}" type="button">
           <div class="rt-card-main">
             <div class="rt-card-name">${esc(g.clientName || 'Cliente')}</div>
-            <div class="rt-card-sub">Bolsa ${bagLabel(g.bag)} · entregada ${fmtDate(g.outAt)} ${fmtTime(g.outAt)}</div>
+            <div class="rt-card-sub">${isRopa() ? `Bolsa ${bagLabel(g.bag)} · ` : ''}entregada ${fmtDate(g.outAt)} ${fmtTime(g.outAt)}</div>
           </div>
           <div class="rt-count rt-count--alert">${qty}</div>
         </button>`
@@ -251,7 +249,7 @@ function openReturn(orderCode) {
         <div class="rt-avatar rt-avatar--alert">${icon('check', 20, 2)}</div>
         <div class="grow">
           <div class="rt-card-name">${firstName ? esc(firstName) : 'Cliente'}</div>
-          <div class="rt-bag-label rt-bag--alert">Bolsa ${bagLabel(bag)}</div>
+          ${isRopa() ? `<div class="rt-bag-label rt-bag--alert">Bolsa ${bagLabel(bag)}</div>` : ''}
         </div>
         <span class="rt-count-pill rt-count-pill--alert rt-acc-badge" id="rt-acc">0 / ${rows.length}</span>
       </div>
@@ -342,6 +340,10 @@ function openReturn(orderCode) {
       returning = false
       return
     }
+    await playSuccessAnim({
+      title: 'Devolución confirmada',
+      sub: isRopa() ? `Bolsa ${bagLabel(bag)} · recibida en el pañol` : 'Todos los ítems · recibidos en el pañol',
+    })
     close()
     ok(`Retorno reportado · ${orderCode} · va a Recepción para confirmar el cierre`)
     haptic([20, 40])

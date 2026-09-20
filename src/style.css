@@ -1474,103 +1474,10 @@ ul {
   object-fit: cover;
 }
 
-.scanner-scanline {
-  position: absolute;
-  left: 7%;
-  right: 7%;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--accent), transparent);
-  box-shadow: 0 0 14px 2px var(--accent);
-  animation: scan 2.4s ease-in-out infinite;
-}
-
-.scanner-corners span {
-  position: absolute;
-  width: 34px;
-  height: 34px;
-  border: 3px solid var(--accent);
-}
-
-.scanner-corners span:nth-child(1) {
-  top: 18px;
-  left: 18px;
-  border-right: none;
-  border-bottom: none;
-  border-radius: 8px 0 0 0;
-}
-
-.scanner-corners span:nth-child(2) {
-  top: 18px;
-  right: 18px;
-  border-left: none;
-  border-bottom: none;
-  border-radius: 0 8px 0 0;
-}
-
-.scanner-corners span:nth-child(3) {
-  bottom: 18px;
-  left: 18px;
-  border-right: none;
-  border-top: none;
-  border-radius: 0 0 0 8px;
-}
-
-.scanner-corners span:nth-child(4) {
-  bottom: 18px;
-  right: 18px;
-  border-left: none;
-  border-top: none;
-  border-radius: 0 0 8px 0;
-}
-
 .scan-manual {
   width: min(100%, 380px);
   display: flex;
   flex-direction: column;
-}
-
-.scanner-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  display: grid;
-  place-items: center;
-  padding: 20px;
-  background: rgba(10, 12, 18, 0.88);
-  text-align: center;
-}
-
-.scanner-overlay-inner {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  max-width: 260px;
-}
-
-.scanner-overlay-icon {
-  width: 64px;
-  height: 64px;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: var(--radius-lg);
-  margin-bottom: 4px;
-}
-
-.scanner-overlay-title {
-  color: #fff;
-  font-size: 17px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-
-.scanner-overlay-sub {
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 13px;
-  line-height: 1.4;
-  margin-bottom: 6px;
 }
 
 .scan-result {
@@ -1751,16 +1658,6 @@ ul {
   to {
     transform: translateY(0);
     opacity: 1;
-  }
-}
-
-@keyframes scan {
-  0%,
-  100% {
-    top: 12%;
-  }
-  50% {
-    top: 86%;
   }
 }
 
